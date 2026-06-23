@@ -4,19 +4,17 @@
   <img src=".github/social-preview.png" alt="Master Hand project artwork" width="640">
 </p>
 
-Master Hand is a Neovim assistant that infers your current coding goal, reads repo context, and suggests safe next steps.
-
-It observes editor and repository state, infers a current goal from your edits, sends read-only context to a configured model, and suggests useful next steps. You can override the inferred goal at any time. It never edits files or runs commands unless you approve the pending action.
+Master Hand is a Neovim assistant that infers your current coding goal, reads repo context, and suggests safe next steps. It never edits files or runs commands unless you approve the pending action.
 
 > [!WARNING]
 > **This project is currently vibe-coded and lightly reviewed. Treat it as experimental until I have more time to harden and audit it.**
 
 ## Features
 
-- Repo-aware context from buffers, diagnostics, git status/diffs, ripgrep, tree-sitter, and a local index.
-- Goal-based suggestions from local heuristics plus OpenAI-compatible, OpenRouter, Ollama, or Anthropic models.
-- Sidebar workflow for reviewing suggestions, feedback, searches, context snapshots, and pending approvals.
-- Safety-first actions: no edits or commands run without approval; proposed diffs must pass `git apply --check`.
+- Repo-aware context: buffers, diagnostics, git status/diffs, ripgrep, tree-sitter, local index.
+- Goal-based suggestions: local heuristics plus OpenAI-compatible, OpenRouter, Ollama, or Anthropic models.
+- Sidebar: review suggestions, feedback, searches, context snapshots, pending approvals.
+- Safety-first: no edits or commands without approval; proposed diffs must pass `git apply --check`.
 
 ## Installation
 
@@ -50,11 +48,11 @@ Suggestions run in two stages:
 1. Local heuristics inspect the current goal, diagnostics, git diff, related files, recent edits, and repo index.
 2. The configured model reviews those local suggestions plus read-only code context and returns additional suggestions.
 
-Suggestions are advisory. Model-backed suggestions can propose an edit or command, but nothing is applied or executed until you approve a pending action.
+Model-backed suggestions can propose an edit or command, but nothing is applied or executed until you approve a pending action.
 
 ## Model providers
 
-Models are part of the normal workflow. Master Hand first builds local context and heuristic suggestions, then sends that read-only context to a model for goal refinement and additional suggestions. With `provider = "auto"`, it uses the first locally available Ollama model.
+With `provider = "auto"`, Master Hand uses the first locally available Ollama model.
 
 ### OpenAI-compatible
 
@@ -135,24 +133,15 @@ require("master-hand").setup({
 | `r` | Refresh |
 | `q` | Close |
 
-## Safety model
+## Safety
 
-- No automatic edits
-- No automatic command execution
+- No automatic edits or command execution
 - Diffs must pass `git apply --check` before approval and before apply
 - Commands use argv arrays, not shell strings
-- Shell metacharacters and dangerous commands are blocked
-- Pending diffs are kept in memory and not written to disk
+- Shell metacharacters and dangerous commands blocked
+- Pending diffs kept in memory, not written to disk
 
 ## Testing
-
-Smoke test:
-
-```sh
-nvim --headless -u NONE +'set rtp+=.' +'lua require("master-hand").setup({ model = { provider = "auto" }, storage = { enabled = false } })' +'lua require("master-hand").suggest()' +qa
-```
-
-Full test run:
 
 ```sh
 nvim --headless -u NONE -l tests/run.lua
