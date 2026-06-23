@@ -1,3 +1,4 @@
+-- JSON persistence for goal/feedback in Neovim state dir.
 local config = require("master-hand.config")
 local M = {}
 

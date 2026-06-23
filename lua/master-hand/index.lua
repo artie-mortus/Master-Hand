@@ -1,3 +1,4 @@
+-- Deterministic local repo index. No model calls here.
 local git = require("master-hand.git")
 local config = require("master-hand.config")
 local path = require("master-hand.path")
@@ -20,6 +21,7 @@ local function lang_for(file)
   return ext_lang[file_ext(file)] or (file_ext(file) ~= "" and file_ext(file) or "other")
 end
 
+-- Read only small file heads; indexing should never pull huge files into memory.
 local function read_head(root, file, max_bytes)
   local full = root .. "/" .. file
   local stat = vim.loop.fs_stat(full)
@@ -66,6 +68,7 @@ local function todos_for(file, text, limit)
   return out
 end
 
+-- Build compact repo facts for prompts/UI without calling external models.
 function M.build(root)
   root = root or git.root()
   local opts = config.get().context.index or {}

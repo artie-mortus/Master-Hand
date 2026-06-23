@@ -1,3 +1,4 @@
+-- Headless smoke/unit tests for core safety and repo-context behavior.
 vim.opt.rtp:append(vim.fn.getcwd())
 local config = require("master-hand.config")
 local path = require("master-hand.path")

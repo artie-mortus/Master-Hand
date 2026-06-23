@@ -1,3 +1,4 @@
+-- In-memory plugin state plus small persistable subset helpers.
 local M = {}
 
 M.data = {

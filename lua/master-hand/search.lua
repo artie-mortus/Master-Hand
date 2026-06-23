@@ -1,3 +1,4 @@
+-- Ripgrep and tree-sitter helpers for related files and current-buffer symbols.
 local config = require("master-hand.config")
 local path = require("master-hand.path")
 local M = {}

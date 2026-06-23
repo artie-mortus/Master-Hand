@@ -1,3 +1,4 @@
+-- Neovim entrypoint: registers :MasterHand commands and short :MH aliases.
 if vim.g.loaded_master_hand == 1 then
   return
 end

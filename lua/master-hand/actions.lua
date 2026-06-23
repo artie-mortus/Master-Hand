@@ -1,3 +1,4 @@
+-- Pending approval lifecycle for proposed edits and commands.
 local state = require("master-hand.state")
 local M = {}
 

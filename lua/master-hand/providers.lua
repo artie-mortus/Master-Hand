@@ -1,3 +1,4 @@
+-- Optional model provider adapters. Provider = "none" must remain fully supported.
 local config = require("master-hand.config")
 local M = {}
 

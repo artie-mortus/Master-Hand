@@ -1,3 +1,4 @@
+-- Sidebar and scratch-buffer UI rendering plus key mappings.
 local state = require("master-hand.state")
 local config = require("master-hand.config")
 local context = require("master-hand.context")

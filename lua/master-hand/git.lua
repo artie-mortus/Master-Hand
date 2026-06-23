@@ -1,3 +1,4 @@
+-- Thin git wrapper for repo root, status, diffs, and tracked file discovery.
 local config = require("master-hand.config")
 local path = require("master-hand.path")
 local M = {}

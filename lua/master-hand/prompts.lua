@@ -1,3 +1,4 @@
+-- Prompt builders for model-backed suggestions and proposed diffs.
 local M = {}
 
 function M.suggestions(snap, mode)

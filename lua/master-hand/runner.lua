@@ -1,3 +1,4 @@
+-- Approval-gated command validation and execution. Shell strings stay blocked.
 local config = require("master-hand.config")
 local M = {}
 
@@ -12,6 +13,7 @@ local function has_subcommand(argv, command, subcommand)
   return false
 end
 
+-- Match blocklist entries by argv tokens, not substrings, to avoid false positives.
 local function is_blocked(argv, rule)
   local parts = vim.split(rule, "%s+", { trimempty = true })
   if #parts == 1 then return argv[1] == parts[1] end
@@ -22,6 +24,7 @@ local function is_blocked(argv, rule)
   return true
 end
 
+-- Validate before enqueue/run. Only argv-style commands are considered safe.
 function M.validate(argv)
   if type(argv) == "string" then argv = vim.split(argv, "%s+", { trimempty = true }) end
   if type(argv) ~= "table" or not argv[1] then return nil, "command must be argv/list" end

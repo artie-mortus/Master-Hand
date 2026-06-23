@@ -1,3 +1,4 @@
+-- Path normalization, ignore matching, and list de-duplication utilities.
 local M = {}
 
 function M.normalize(path)

@@ -1,3 +1,4 @@
+-- Builds one repo/editor snapshot used by suggestions, prompts, and status UI.
 local git = require("master-hand.git")
 local state = require("master-hand.state")
 local config = require("master-hand.config")
@@ -7,6 +8,7 @@ local index = require("master-hand.index")
 
 local M = {}
 
+-- Return loaded buffers inside repo root, filtered through project ignores.
 local function open_buffers(root)
   if not config.get().observation.buffers then return {} end
   local items = {}
@@ -22,6 +24,7 @@ local function open_buffers(root)
   return path.dedupe(items)
 end
 
+-- Collapse Neovim diagnostics into counts so prompts/UI stay compact.
 local function diagnostics()
   if not config.get().observation.diagnostics then return { errors=0, warnings=0, info=0, hints=0, files={} } end
   local counts = { errors = 0, warnings = 0, info = 0, hints = 0, files = {} }
@@ -52,6 +55,7 @@ local function recent_edits(root)
   return out
 end
 
+-- Main context object. Keep deterministic/local; do not call providers from here.
 function M.snapshot()
   local root = state.data.root or git.root()
   state.data.root = root

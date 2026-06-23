@@ -1,3 +1,4 @@
+-- Public plugin API used by commands, autocmds, and sidebar actions.
 local config = require("master-hand.config")
 local state = require("master-hand.state")
 local context = require("master-hand.context")
@@ -14,6 +15,7 @@ local index = require("master-hand.index")
 local M = {}
 local timer = nil
 
+-- Persist only long-lived user intent/feedback, not volatile context or pending actions.
 local function save_state() storage.save(state.persistable()) end
 
 local function refresh_suggestions()
@@ -32,6 +34,7 @@ local function debounce_suggest()
   timer:start(opts.suggestion_frequency_ms, 0, vim.schedule_wrap(refresh_suggestions))
 end
 
+-- Editor events only refresh suggestions; they never edit files or run commands.
 local function setup_autocmds()
   local group = vim.api.nvim_create_augroup("MasterHand", { clear = true })
   vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI", "BufWritePost" }, {
@@ -110,6 +113,7 @@ function M.prepare_diff(request)
   ui.render()
 end
 
+-- Apply approved actions. This is the only path that executes commands or applies diffs.
 function M.approve(id)
   id = id and id ~= "" and id or nil
   local action = id and actions.get(id) or actions.list()[1]

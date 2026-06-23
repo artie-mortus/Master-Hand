@@ -1,3 +1,4 @@
+-- Suggestion generation: local heuristics first, optional model suggestions second.
 local context = require("master-hand.context")
 local state = require("master-hand.state")
 local schema = require("master-hand.schema")
@@ -14,6 +15,7 @@ local function item(id, title, reason, files, confidence, next_action, action_ty
   return schema.suggestion(extra)
 end
 
+-- Cheap local suggestions. These must work even when no model is configured.
 local function heuristic(snap)
   local out = {}
   if snap.goal and snap.goal ~= "" then table.insert(out, item("goal-plan", "Break goal into repo-aware steps", "Active goal set; identify touched modules before editing.", snap.changed_files, 0.82, "Review related search hits for: " .. snap.goal, "advice")) end
@@ -29,6 +31,7 @@ local function heuristic(snap)
   return out
 end
 
+-- Optional model suggestions. Failures become low-confidence advice instead of errors.
 local function provider_items(snap, mode)
   if config.get().model.provider == "none" then return {} end
   local content, err = providers.complete(prompts.suggestions(snap, mode))

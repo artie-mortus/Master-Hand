@@ -1,3 +1,4 @@
+-- Normalizes untrusted suggestion tables into one safe internal shape.
 local M = {}
 local allowed = { advice=true, proposed_edit=true, command=true }
 

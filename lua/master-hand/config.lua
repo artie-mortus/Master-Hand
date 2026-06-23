@@ -1,3 +1,4 @@
+-- Default options and setup-time config merging. Keep defaults side-effect free.
 local M = {}
 
 M.defaults = {

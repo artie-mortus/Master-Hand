@@ -1,3 +1,4 @@
+-- Model-proposed diff safety checks, preview preparation, and approved apply.
 local context = require("master-hand.context")
 local providers = require("master-hand.providers")
 local prompts = require("master-hand.prompts")
@@ -5,6 +6,7 @@ local config = require("master-hand.config")
 local path = require("master-hand.path")
 local M = {}
 
+-- Reject patches that can escape repo, touch ignored paths, or include binary data.
 local function unsafe(diff)
   if not diff or diff == "" then return "empty diff" end
   if diff:find("GIT binary patch", 1, true) then return "binary patches blocked" end
@@ -19,6 +21,7 @@ local function unsafe(diff)
   end
 end
 
+-- Ask provider for a patch, then validate with git before user sees approval item.
 function M.prepare(request)
   local snap = context.snapshot()
   local content, err = providers.complete(prompts.diff(snap, request or snap.goal or "prepare proposed edit"))
@@ -29,6 +32,7 @@ function M.prepare(request)
   return content
 end
 
+-- Re-check before apply so approved stale patches cannot sneak through.
 function M.apply(root, diff)
   local bad = unsafe(diff); if bad then return false, bad end
   local check = vim.system({ "git", "-C", root, "apply", "--check", "-" }, { text = true, stdin = diff }):wait()
