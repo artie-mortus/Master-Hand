@@ -93,6 +93,7 @@ end
 
 function M.complete(messages, opts)
   local model = vim.tbl_deep_extend("force", config.get().model, opts or {})
+  if model.provider == "none" then return nil, "model provider disabled" end
   if model.provider == "auto" then return ollama(model, messages) end
   if model.provider == "openai_compatible" then return openai_compatible(model, messages) end
   if model.provider == "openrouter" then return openrouter(model, messages) end

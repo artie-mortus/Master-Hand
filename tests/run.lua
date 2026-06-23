@@ -44,7 +44,14 @@ local content, perr = providers.complete({}, { provider = "anthropic", name = "c
 assert(not content and perr:match("api key missing"), "anthropic requires api key")
 content, perr = providers.complete({}, { provider = "openrouter", name = "anthropic/claude-3.5-sonnet", api_key_env = "MASTER_HAND_TEST_MISSING_KEY" })
 assert(not content and perr:match("openrouter api key missing"), "openrouter requires api key")
+content, perr = providers.complete({}, { provider = "none" })
+assert(not content and perr:match("disabled"), "none disables provider")
 
+config.setup({ model = { provider = "none" }, storage = { enabled = false } })
+local none_suggestions = require("master-hand.suggestions").generate()
+for _, suggestion in ipairs(none_suggestions) do
+  assert(suggestion.id ~= "provider-error", "disabled provider does not emit provider errors")
+end
 providers.complete = function(messages)
   if messages[1].content:match("Infer the user's current coding goal") then
     return vim.json.encode({ goal = "Model inferred test goal", confidence = 0.9 })

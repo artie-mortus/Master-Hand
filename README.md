@@ -54,7 +54,7 @@ Suggestions are advisory. Model-backed suggestions can propose an edit or comman
 
 ## Model providers
 
-Models are part of the normal workflow. Master Hand first builds local context and heuristic suggestions, then sends that read-only context to a model for goal refinement and additional suggestions. With `provider = "auto"`, it uses the first locally available Ollama model.
+Models are part of the normal workflow. Master Hand first builds local context and heuristic suggestions, then sends that read-only context to a model for goal refinement and additional suggestions. With `provider = "auto"`, it uses the first locally available Ollama model. Use `provider = "none"` for heuristic-only suggestions.
 
 ### OpenAI-compatible
 
