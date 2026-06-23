@@ -12,6 +12,12 @@ local commands = {
   MasterHandPlan = { fn = function() mh.plan() end, opts = {}, aliases = { "MHPlan" } },
   MasterHandSuggest = { fn = function() mh.suggest() end, opts = {}, aliases = { "MHSuggest" } },
   MasterHandStatus = { fn = function() mh.status() end, opts = {}, aliases = { "MHStatus" } },
+  MasterHandContext = { fn = function() mh.context() end, opts = {}, aliases = { "MHContext" } },
+  MasterHandDiff = { fn = function(opts) mh.prepare_diff(opts.args) end, opts = { nargs = "*" }, aliases = { "MHDiff" } },
+  MasterHandApprove = { fn = function(opts) mh.approve(opts.args) end, opts = { nargs = "?" }, aliases = { "MHApprove" } },
+  MasterHandReject = { fn = function(opts) mh.reject(opts.args) end, opts = { nargs = "?" }, aliases = { "MHReject" } },
+  MasterHandRun = { fn = function(opts) mh.run_command(opts.fargs) end, opts = { nargs = "+" }, aliases = { "MHRun" } },
+  MasterHandPending = { fn = function() mh.pending() end, opts = {}, aliases = { "MHPending" } },
 }
 
 for name, command in pairs(commands) do

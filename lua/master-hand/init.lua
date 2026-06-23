@@ -4,105 +4,100 @@ local context = require("master-hand.context")
 local suggestions = require("master-hand.suggestions")
 local ui = require("master-hand.ui")
 local git = require("master-hand.git")
+local storage = require("master-hand.storage")
+local actions = require("master-hand.actions")
+local diff = require("master-hand.diff")
+local runner = require("master-hand.runner")
 
 local M = {}
 local timer = nil
 
+local function save_state() storage.save(state.persistable()) end
+
 local function debounce_suggest()
   local opts = config.get()
-  if opts.proactivity == "passive" then
-    return
-  end
-  if timer then
-    timer:stop()
-    timer:close()
-  end
+  if opts.proactivity == "passive" then return end
+  if timer then timer:stop(); timer:close() end
   timer = vim.loop.new_timer()
-  timer:start(opts.suggestion_frequency_ms, 0, vim.schedule_wrap(function()
-    suggestions.generate()
-    ui.render()
-  end))
+  timer:start(opts.suggestion_frequency_ms, 0, vim.schedule_wrap(function() suggestions.generate(); ui.render() end))
 end
 
 local function setup_autocmds()
   local group = vim.api.nvim_create_augroup("MasterHand", { clear = true })
-  vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI", "BufWritePost" }, {
-    group = group,
-    callback = function(args)
-      state.add_edit(args.buf)
-      debounce_suggest()
-    end,
-  })
-  vim.api.nvim_create_autocmd("DiagnosticChanged", {
-    group = group,
-    callback = debounce_suggest,
-  })
+  vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI", "BufWritePost" }, { group = group, callback = function(args) state.add_edit(args.buf); debounce_suggest() end })
+  vim.api.nvim_create_autocmd("DiagnosticChanged", { group = group, callback = debounce_suggest })
+  vim.api.nvim_create_autocmd("VimLeavePre", { group = group, callback = save_state })
 end
 
 function M.setup(opts)
   config.setup(opts)
+  state.restore(storage.load())
   state.data.root = git.root()
   setup_autocmds()
 end
 
-function M.open()
-  if #state.data.suggestions == 0 then
-    suggestions.generate()
-  end
-  ui.open()
-end
-
-function M.close()
-  ui.close()
-end
+function M.open() if #state.data.suggestions == 0 then suggestions.generate() end; ui.open() end
+function M.close() ui.close() end
 
 function M.set_goal(goal)
   state.data.goal = vim.trim(goal or "")
   suggestions.generate({ mode = "goal" })
-  ui.render()
+  save_state(); ui.render()
   vim.notify("Master Hand goal set: " .. state.data.goal)
 end
 
 function M.plan()
-  local goal = state.data.goal
-  if not goal or goal == "" then
-    vim.notify("Set goal first: :MasterHandGoal <goal>", vim.log.levels.WARN)
-    return
+  if not state.data.goal or state.data.goal == "" then vim.notify("Set goal first: :MasterHandGoal <goal>", vim.log.levels.WARN); return end
+  suggestions.generate({ mode = "plan" }); ui.open()
+end
+function M.suggest() suggestions.generate(); ui.open() end
+function M.status() vim.notify(context.summary()) end
+function M.context() ui.show_text("Master Hand Context", vim.inspect(context.snapshot())) end
+
+function M.prepare_diff(request)
+  local patch, err = diff.prepare(request)
+  if not patch then vim.notify("Diff prepare failed: " .. tostring(err), vim.log.levels.ERROR); return end
+  local action = actions.create({ type = "proposed_edit", title = "Proposed diff", diff = patch, root = state.data.root })
+  ui.show_text("Master Hand Diff " .. action.id, patch)
+  ui.render()
+end
+
+function M.approve(id)
+  id = id and id ~= "" and id or nil
+  local action = id and actions.get(id) or actions.list()[1]
+  if not action then vim.notify("No pending action", vim.log.levels.WARN); return end
+  actions.approve(action.id)
+  if action.type == "proposed_edit" then
+    local ok, err = diff.apply(action.root, action.diff)
+    vim.notify(ok and ("Applied " .. action.id) or ("Apply failed: " .. tostring(err)), ok and vim.log.levels.INFO or vim.log.levels.ERROR)
+  elseif action.type == "command" then
+    local res, err = runner.run(state.data.root, action.argv)
+    if not res then vim.notify("Command failed: " .. tostring(err), vim.log.levels.ERROR); return end
+    state.data.last_command = res
+    ui.show_text("Master Hand Command Output", table.concat({ "$ " .. table.concat(res.argv, " "), "", res.stdout, res.stderr }, "\n"))
   end
-  suggestions.generate({ mode = "plan" })
-  ui.open()
+  ui.render()
 end
 
-function M.suggest()
-  suggestions.generate()
-  ui.open()
-end
+function M.reject(id) local a = actions.reject(id); vim.notify(a and ("Rejected " .. id) or "No such action") end
+function M.pending() ui.open() end
 
-function M.status()
-  vim.notify(context.summary())
+function M.run_command(args)
+  local argv, err = runner.validate(args)
+  if not argv then vim.notify("Command rejected: " .. err, vim.log.levels.ERROR); return end
+  local action = actions.create({ type = "command", title = "Run command", argv = argv })
+  vim.notify("Command pending approval: " .. action.id)
+  ui.render()
 end
 
 function M.feedback(action)
-  local line = vim.api.nvim_win_get_cursor(0)[1]
-  local idx = nil
-  for i = line, 1, -1 do
-    local text = vim.api.nvim_buf_get_lines(0, i - 1, i, false)[1] or ""
-    idx = tonumber(text:match("^(%d+)%."))
-    if idx then
-      break
-    end
-  end
-  local suggestion = state.data.suggestions[idx or 0]
-  if not suggestion then
-    vim.notify("No suggestion under cursor", vim.log.levels.WARN)
-    return
-  end
-  state.feedback(suggestion.id, action)
+  local suggestion = ui.suggestion_under_cursor()
+  if not suggestion then vim.notify("No suggestion under cursor", vim.log.levels.WARN); return end
+  state.feedback(suggestion.id, action); save_state()
   if action == "dismissed" then
-    table.remove(state.data.suggestions, idx)
+    for i, s in ipairs(state.data.suggestions) do if s.id == suggestion.id then table.remove(state.data.suggestions, i); break end end
   end
-  ui.render()
-  vim.notify("Suggestion " .. action .. ": " .. suggestion.title)
+  ui.render(); vim.notify("Suggestion " .. action .. ": " .. suggestion.title)
 end
 
 return M

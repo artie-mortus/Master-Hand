@@ -24,15 +24,31 @@ M.defaults = {
     ".env.*",
   },
   model = {
-    provider = "none",
+    provider = "none", -- none | openai_compatible
     endpoint = nil,
     api_key_env = nil,
     name = nil,
     context_limit = 32000,
+    timeout_ms = 30000,
+    temperature = 0.2,
+    max_tokens = 1200,
+  },
+  context = {
+    max_files = 80,
+    max_diff_bytes = 24000,
+    max_file_bytes = 12000,
+  },
+  commands = {
+    allowlist = { "git", "make", "npm", "pnpm", "yarn", "cargo", "go", "pytest", "python", "lua", "nvim" },
+    blocklist = { "rm", "sudo", "git reset", "git clean" },
+  },
+  storage = {
+    enabled = true,
   },
   ui = {
     width = 46,
     side = "right",
+    show_diff_preview = true,
   },
 }
 
