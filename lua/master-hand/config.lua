@@ -62,12 +62,12 @@ M.defaults = {
   },
 }
 
-local function merge(a, b)
-  return vim.tbl_deep_extend("force", a or {}, b or {})
+local function merge(defaults, opts)
+  return vim.tbl_deep_extend("force", vim.deepcopy(defaults or {}), opts or {})
 end
 
 function M.setup(opts)
-  M.options = merge(M.defaults, opts or {})
+  M.options = merge(M.defaults, opts)
   return M.options
 end
 

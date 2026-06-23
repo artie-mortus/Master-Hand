@@ -9,12 +9,30 @@ function M.create(action)
   state.data.pending_actions[action.id] = action
   return action
 end
-function M.get(id) return state.data.pending_actions[id] end
+function M.get(id)
+  return state.data.pending_actions[id]
+end
+
 function M.list()
-  local out={} for _, a in pairs(state.data.pending_actions) do table.insert(out,a) end
+  local out = {}
+  for _, action in pairs(state.data.pending_actions) do
+    table.insert(out, action)
+  end
   table.sort(out, function(a, b) return tostring(a.id) < tostring(b.id) end)
   return out
 end
-function M.reject(id) local a=M.get(id); if a then a.status="rejected" end; return a end
-function M.approve(id) local a=M.get(id); if a then a.status="approved" end; return a end
+
+local function set_status(id, status)
+  local action = M.get(id)
+  if action then action.status = status end
+  return action
+end
+
+function M.reject(id)
+  return set_status(id, "rejected")
+end
+
+function M.approve(id)
+  return set_status(id, "approved")
+end
 return M

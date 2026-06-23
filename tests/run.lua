@@ -36,6 +36,8 @@ ok, err = runner.validate({ "git", "-C", ".", "reset", "--hard" })
 assert(not ok and err:match("blocked"), "git -C reset blocked")
 ok, err = runner.validate({ "git", "status" })
 assert(ok and ok[1] == "git", "git status allowed")
+ok, err = runner.validate({ "npm", "run", "format" })
+assert(ok and ok[1] == "npm", "safe command with blocklist substring allowed")
 
 local content, perr = providers.complete({})
 assert(not content and perr:match("no model"), "provider none returns error")
