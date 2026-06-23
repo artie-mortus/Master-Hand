@@ -5,6 +5,7 @@ local schema = require("master-hand.schema")
 local prompts = require("master-hand.prompts")
 local providers = require("master-hand.providers")
 local config = require("master-hand.config")
+local path = require("master-hand.path")
 
 local M = {}
 
@@ -31,10 +32,39 @@ local function heuristic(snap)
   return out
 end
 
+local function add_candidate(candidates, seen, file)
+  if not file or file == "" or seen[file] or path.is_ignored(file, config.get().ignore) then return end
+  seen[file] = true
+  table.insert(candidates, file)
+end
+
+local function code_context(snap)
+  local opts = config.get().context
+  local candidates, seen = {}, {}
+  for _, file in ipairs(snap.changed_files or {}) do add_candidate(candidates, seen, file) end
+  for _, file in ipairs(snap.open_buffers or {}) do add_candidate(candidates, seen, file) end
+  for _, hit in ipairs(snap.related or {}) do add_candidate(candidates, seen, hit.file) end
+  for _, file in ipairs((snap.repo_index or {}).entrypoints or {}) do add_candidate(candidates, seen, file) end
+
+  local out = {}
+  for _, file in ipairs(candidates) do
+    if #out >= (opts.max_model_code_files or 8) then break end
+    local full = (snap.root or "") .. "/" .. file
+    local stat = vim.loop.fs_stat(full)
+    if stat and stat.type == "file" and stat.size <= (opts.max_model_file_bytes or 12000) then
+      local ok, lines = pcall(vim.fn.readfile, full, "", 500)
+      if ok then table.insert(out, { file = file, text = table.concat(lines, "\n") }) end
+    end
+  end
+  return out
+end
+
 -- Optional model suggestions. Failures become low-confidence advice instead of errors.
-local function provider_items(snap, mode)
+local function provider_items(snap, mode, local_suggestions)
   if config.get().model.provider == "none" then return {} end
-  local content, err = providers.complete(prompts.suggestions(snap, mode))
+  snap = vim.deepcopy(snap)
+  snap.code = code_context(snap)
+  local content, err = providers.complete(prompts.suggestions(snap, mode, local_suggestions))
   if not content then return { item("provider-error", "Model provider failed", err, {}, 0.3, "Check model config or continue with heuristic suggestions.", "advice") } end
   local ok, decoded = pcall(vim.json.decode, content)
   if not ok then return { item("provider-parse-error", "Model suggestions malformed", "Provider did not return JSON array.", {}, 0.3, "Retry or adjust provider prompt/model.", "advice") } end
@@ -45,8 +75,9 @@ function M.generate(opts)
   opts = opts or {}
   local snap = context.snapshot()
   local out = {}
-  vim.list_extend(out, heuristic(snap))
-  vim.list_extend(out, provider_items(snap, opts.mode or "suggest"))
+  local local_suggestions = heuristic(snap)
+  vim.list_extend(out, local_suggestions)
+  vim.list_extend(out, provider_items(snap, opts.mode or "suggest", local_suggestions))
   local filtered = {}
   for _, s in ipairs(out) do if not state.data.dismissed[s.id] then table.insert(filtered, s) end end
   state.set_suggestions(filtered)
