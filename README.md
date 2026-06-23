@@ -8,6 +8,9 @@ Master Hand is a Neovim plugin for repo-aware coding suggestions.
 
 It observes editor and repository state, tracks an optional goal, and suggests useful next steps. It never edits files or runs commands unless you approve the pending action.
 
+> [!WARNING]
+> This project is currently vibe-coded and lightly reviewed. Treat it as experimental until I have more time to harden and audit it.
+
 ## Features
 
 - Repo-aware context from buffers, diagnostics, git status/diffs, ripgrep, tree-sitter, and a local index.
