@@ -10,18 +10,10 @@ It observes editor and repository state, tracks an optional goal, and suggests u
 
 ## Features
 
-- Sidebar UI for suggestions and pending approvals
-- Open buffer, recent edit, diagnostic, and git context
-- Git branch, status, and diff summaries
-- Local repo index with languages, directories, entrypoints, tests, docs, TODOs, symbols, and large files
-- Ripgrep-powered related-file search from goal terms
-- Tree-sitter symbols for current buffer when available
-- Local heuristic suggestions with optional model-backed suggestions
-- Feedback actions: accept, dismiss, postpone
-- Persisted goal and feedback
-- Approval-gated command execution
-- Approval-gated model-proposed diffs with preview and `git apply --check`
-- Ignore handling for `.git/`, `node_modules/`, `.env*`, `dist/`, and `build/`
+- Repo-aware context from buffers, diagnostics, git status/diffs, ripgrep, tree-sitter, and a local index.
+- Goal-based suggestions from local heuristics, with optional OpenAI-compatible, Ollama, or Anthropic models.
+- Sidebar workflow for reviewing suggestions, feedback, searches, context snapshots, and pending approvals.
+- Safety-first actions: no edits or commands run without approval; proposed diffs must pass `git apply --check`.
 
 ## Installation
 
