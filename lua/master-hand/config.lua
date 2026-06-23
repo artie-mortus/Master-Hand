@@ -2,7 +2,8 @@
 local M = {}
 
 M.defaults = {
-  proactivity = "advisory", -- passive | advisory | proactive | high_initiative
+  -- Safe-by-default: installed plugin must not run blocking model/git/rg work from autocmds.
+  proactivity = "passive", -- passive | advisory | proactive | high_initiative
   suggestion_frequency_ms = 5000,
   observation = {
     buffers = true,
@@ -30,7 +31,7 @@ M.defaults = {
     api_key_env = nil,
     name = nil,
     context_limit = 32000,
-    timeout_ms = 30000,
+    timeout_ms = 10000,
     temperature = 0.2,
     max_tokens = 1200,
   },
