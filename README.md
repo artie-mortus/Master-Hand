@@ -15,7 +15,7 @@ It watches basic editor/repo state, keeps an optional goal, and shows suggested 
 - tree-sitter symbols for current buffer when available
 - `:MHGoal` for a current task
 - local heuristic suggestions
-- optional OpenAI-compatible chat endpoint
+- optional model providers: OpenAI-compatible, Ollama, Anthropic
 - accept / dismiss / postpone feedback
 - persisted goal and feedback
 - pending command approval
@@ -39,7 +39,7 @@ It watches basic editor/repo state, keeps an optional goal, and shows suggested 
 
 ## Optional model provider
 
-Example with an OpenAI-compatible local endpoint:
+OpenAI-compatible endpoint:
 
 ```lua
 require("master-hand").setup({
@@ -48,6 +48,30 @@ require("master-hand").setup({
     endpoint = "http://localhost:11434/v1/chat/completions",
     name = "qwen2.5-coder",
     api_key_env = nil,
+  },
+})
+```
+
+Ollama native API:
+
+```lua
+require("master-hand").setup({
+  model = {
+    provider = "ollama",
+    endpoint = "http://localhost:11434/api/chat", -- optional default
+    name = "qwen2.5-coder",
+  },
+})
+```
+
+Anthropic:
+
+```lua
+require("master-hand").setup({
+  model = {
+    provider = "anthropic",
+    name = "claude-sonnet-4-20250514",
+    api_key_env = "ANTHROPIC_API_KEY",
   },
 })
 ```

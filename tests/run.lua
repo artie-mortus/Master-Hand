@@ -34,6 +34,10 @@ assert(ok and ok[1] == "git", "git status allowed")
 
 local content, perr = providers.complete({})
 assert(not content and perr:match("no model"), "provider none returns error")
+content, perr = providers.complete({}, { provider = "ollama" })
+assert(not content and perr:match("model.name required"), "ollama requires model name")
+content, perr = providers.complete({}, { provider = "anthropic", name = "claude-sonnet-4-20250514", api_key_env = "MASTER_HAND_TEST_MISSING_KEY" })
+assert(not content and perr:match("api key missing"), "anthropic requires api key")
 
 require("master-hand").setup({ proactivity = "passive", storage = { enabled = false }, model = { provider = "none" } })
 require("master-hand.suggestions").generate()
