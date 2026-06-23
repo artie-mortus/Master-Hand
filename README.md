@@ -9,7 +9,7 @@ Master Hand is a Neovim assistant that infers your current coding goal, reads re
 It observes editor and repository state, infers a current goal from your edits, sends read-only context to a configured model, and suggests useful next steps. You can override the inferred goal at any time. It never edits files or runs commands unless you approve the pending action.
 
 > [!WARNING]
-> This project is currently vibe-coded and lightly reviewed. Treat it as experimental until I have more time to harden and audit it.
+> **This project is currently vibe-coded and lightly reviewed. Treat it as experimental until I have more time to harden and audit it.**
 
 ## Features
 
