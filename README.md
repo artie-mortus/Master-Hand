@@ -6,7 +6,7 @@
 
 Master Hand is a Neovim assistant that infers your current coding goal, reads repo context, and suggests safe next steps.
 
-It observes editor and repository state, infers a current goal from your edits, and suggests useful next steps. When a model is configured, it can refine the inferred goal by reading recent edited lines and code excerpts. You can override the inferred goal at any time. It never edits files or runs commands unless you approve the pending action.
+It observes editor and repository state, infers a current goal from your edits, sends read-only context to a configured model, and suggests useful next steps. You can override the inferred goal at any time. It never edits files or runs commands unless you approve the pending action.
 
 > [!WARNING]
 > This project is currently vibe-coded and lightly reviewed. Treat it as experimental until I have more time to harden and audit it.
@@ -14,7 +14,7 @@ It observes editor and repository state, infers a current goal from your edits, 
 ## Features
 
 - Repo-aware context from buffers, diagnostics, git status/diffs, ripgrep, tree-sitter, and a local index.
-- Goal-based suggestions from local heuristics, with optional OpenAI-compatible, Ollama, or Anthropic models.
+- Goal-based suggestions from local heuristics plus OpenAI-compatible, OpenRouter, Ollama, or Anthropic models.
 - Sidebar workflow for reviewing suggestions, feedback, searches, context snapshots, and pending approvals.
 - Safety-first actions: no edits or commands run without approval; proposed diffs must pass `git apply --check`.
 
@@ -24,7 +24,7 @@ Example `lazy.nvim` config:
 
 ```lua
 {
-  dir = "/home/artemis/projects/Master Hand",
+  "artie-mortus/Master-Hand",
   name = "master-hand",
   config = function()
     require("master-hand").setup({
@@ -39,8 +39,8 @@ Example `lazy.nvim` config:
 
 Master Hand always keeps a current goal:
 
-- Without a model, it infers the goal from recent edited lines, changed files, diagnostics, and repo state.
-- With a model, it can refine that goal by reading recent edited lines and selected code excerpts like a human code reviewer.
+- Local heuristics infer an initial goal from recent edited lines, changed files, diagnostics, and repo state.
+- The configured model refines that goal by reading recent edited lines and selected code excerpts like a human code reviewer.
 - `:MasterHandGoal <goal>` overrides inference when the detected goal is wrong.
 
 ## Suggestions
@@ -48,7 +48,7 @@ Master Hand always keeps a current goal:
 Suggestions run in two stages:
 
 1. Local heuristics inspect the current goal, diagnostics, git diff, related files, recent edits, and repo index.
-2. If a model is configured, the model reviews those local suggestions plus read-only code context and returns additional suggestions.
+2. The configured model reviews those local suggestions plus read-only code context and returns additional suggestions.
 
 Suggestions are advisory. Model-backed suggestions can propose an edit or command, but nothing is applied or executed until you approve a pending action.
 
@@ -155,6 +155,6 @@ nvim --headless -u NONE +'set rtp+=.' +'lua require("master-hand").setup({ model
 Full test run:
 
 ```sh
-nvim --headless -u NONE +'set rtp+=.' +'luafile tests/run.lua' +qa
+nvim --headless -u NONE -l tests/run.lua
 ```
 
