@@ -1,5 +1,9 @@
 # Master Hand
 
+<p align="center">
+  <img src=".github/social-preview.png" alt="Master Hand project artwork" width="640">
+</p>
+
 Neovim plugin for repo-aware coding suggestions.
 
 It watches basic editor/repo state, keeps an optional goal, and shows suggested next steps. It does not edit files or run commands unless you approve the pending action.
