@@ -4,30 +4,28 @@
   <img src=".github/social-preview.png" alt="Master Hand project artwork" width="640">
 </p>
 
-Neovim plugin for repo-aware coding suggestions.
+Master Hand is a Neovim plugin for repo-aware coding suggestions.
 
-It watches basic editor/repo state, keeps an optional goal, and shows suggested next steps. It does not edit files or run commands unless you approve the pending action.
+It observes editor and repository state, tracks an optional goal, and suggests useful next steps. It never edits files or runs commands unless you approve the pending action.
 
-## What works
+## Features
 
-- Neovim Lua plugin
-- sidebar UI
-- open buffer / recent edit tracking
-- diagnostics summary
-- git branch/status/diff context
-- non-LLM repo index: language/extension/dir counts, entrypoints, tests, docs, TODOs, simple symbols, largest files
-- ripgrep related-file search for goal terms
-- tree-sitter symbols for current buffer when available
-- `:MHGoal` for a current task
-- local heuristic suggestions
-- optional model providers: OpenAI-compatible, Ollama, Anthropic
-- accept / dismiss / postpone feedback
-- persisted goal and feedback
-- pending command approval
-- proposed diff preview/apply after approval
-- ignore list for `.git/`, `node_modules/`, `.env*`, build dirs
+- Sidebar UI for suggestions and pending approvals
+- Open buffer, recent edit, diagnostic, and git context
+- Git branch, status, and diff summaries
+- Local repo index with languages, directories, entrypoints, tests, docs, TODOs, symbols, and large files
+- Ripgrep-powered related-file search from goal terms
+- Tree-sitter symbols for current buffer when available
+- Local heuristic suggestions with optional model-backed suggestions
+- Feedback actions: accept, dismiss, postpone
+- Persisted goal and feedback
+- Approval-gated command execution
+- Approval-gated model-proposed diffs with preview and `git apply --check`
+- Ignore handling for `.git/`, `node_modules/`, `.env*`, `dist/`, and `build/`
 
-## Install with lazy.nvim
+## Installation
+
+Example `lazy.nvim` config:
 
 ```lua
 {
@@ -42,9 +40,11 @@ It watches basic editor/repo state, keeps an optional goal, and shows suggested 
 }
 ```
 
-## Optional model provider
+## Model providers
 
-OpenAI-compatible endpoint:
+Models are optional. With `provider = "none"`, Master Hand uses local heuristics only.
+
+### OpenAI-compatible
 
 ```lua
 require("master-hand").setup({
@@ -57,7 +57,7 @@ require("master-hand").setup({
 })
 ```
 
-Ollama native API:
+### Ollama
 
 ```lua
 require("master-hand").setup({
@@ -69,7 +69,7 @@ require("master-hand").setup({
 })
 ```
 
-Anthropic:
+### Anthropic
 
 ```lua
 require("master-hand").setup({
@@ -85,49 +85,58 @@ require("master-hand").setup({
 
 | Command | Alias | Description |
 | --- | --- | --- |
-| `:MasterHand` | `:MH` | open sidebar |
-| `:MasterHandClose` | `:MHClose` | close sidebar |
-| `:MasterHandGoal <goal>` | `:MHGoal <goal>` | set goal |
-| `:MasterHandPlan` | `:MHPlan` | generate plan suggestions |
-| `:MasterHandSuggest` | `:MHSuggest` | refresh suggestions |
-| `:MasterHandStatus` | `:MHStatus` | print context summary |
-| `:MasterHandContext` | `:MHContext` | show context snapshot |
-| `:MasterHandIndex` | `:MHIndex` | show non-LLM repo index |
-| `:MasterHandDiff [request]` | `:MHDiff [request]` | prepare proposed diff via model |
-| `:MasterHandApprove [id]` | `:MHApprove [id]` | approve pending action |
-| `:MasterHandReject [id]` | `:MHReject [id]` | reject pending action |
-| `:MasterHandRun <argv...>` | `:MHRun <argv...>` | queue command for approval |
-| `:MasterHandPending` | `:MHPending` | show pending actions |
-| `:MasterHandSearch <query>` | `:MHSearch <query>` | run repo search |
+| `:MasterHand` | `:MH` | Open sidebar |
+| `:MasterHandClose` | `:MHClose` | Close sidebar |
+| `:MasterHandGoal <goal>` | `:MHGoal <goal>` | Set current goal |
+| `:MasterHandPlan` | `:MHPlan` | Generate plan suggestions |
+| `:MasterHandSuggest` | `:MHSuggest` | Refresh suggestions |
+| `:MasterHandStatus` | `:MHStatus` | Print context summary |
+| `:MasterHandContext` | `:MHContext` | Show context snapshot |
+| `:MasterHandIndex` | `:MHIndex` | Show local repo index |
+| `:MasterHandDiff [request]` | `:MHDiff [request]` | Prepare model-proposed diff |
+| `:MasterHandApprove [id]` | `:MHApprove [id]` | Approve pending action |
+| `:MasterHandReject [id]` | `:MHReject [id]` | Reject pending action |
+| `:MasterHandRun <argv...>` | `:MHRun <argv...>` | Queue command for approval |
+| `:MasterHandPending` | `:MHPending` | Show pending actions |
+| `:MasterHandSearch <query>` | `:MHSearch <query>` | Search repo with ripgrep |
 
 ## Sidebar keys
 
-- `a` accept suggestion
-- `d` dismiss suggestion
-- `p` postpone suggestion
-- `v` view details
-- `r` refresh
-- `q` close
+| Key | Action |
+| --- | --- |
+| `a` | Accept suggestion |
+| `d` | Dismiss suggestion |
+| `p` | Postpone suggestion |
+| `v` | View details |
+| `r` | Refresh |
+| `q` | Close |
 
-## Safety
+## Safety model
 
-- No automatic edits.
-- No automatic command execution.
-- Diffs must pass `git apply --check` before approval and again before apply.
-- Commands use argv, not shell strings.
-- Shell metacharacters and dangerous commands are blocked.
-- Pending diffs are not saved to disk.
+- No automatic edits
+- No automatic command execution
+- Diffs must pass `git apply --check` before approval and before apply
+- Commands use argv arrays, not shell strings
+- Shell metacharacters and dangerous commands are blocked
+- Pending diffs are kept in memory and not written to disk
 
-## Test
+## Testing
+
+Smoke test:
 
 ```sh
 nvim --headless -u NONE +'set rtp+=.' +'lua require("master-hand").setup({ model = { provider = "none" }, storage = { enabled = false } })' +'lua require("master-hand").suggest()' +qa
+```
+
+Full test run:
+
+```sh
 nvim --headless -u NONE +'set rtp+=.' +'luafile tests/run.lua' +qa
 ```
 
 ## Non-goals
 
-- no autonomous feature implementation
-- no background shell agent
-- no destructive commands
-- no broad architecture changes without explicit approval
+- Autonomous feature implementation
+- Background shell agents
+- Destructive commands
+- Broad architecture changes without explicit approval
