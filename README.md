@@ -11,6 +11,8 @@ It watches basic editor/repo state, keeps an optional goal, and shows suggested 
 - open buffer / recent edit tracking
 - diagnostics summary
 - git branch/status/diff context
+- ripgrep related-file search for goal terms
+- tree-sitter symbols for current buffer when available
 - `:MHGoal` for a current task
 - local heuristic suggestions
 - optional OpenAI-compatible chat endpoint
@@ -66,6 +68,7 @@ require("master-hand").setup({
 | `:MasterHandReject [id]` | `:MHReject [id]` | reject pending action |
 | `:MasterHandRun <argv...>` | `:MHRun <argv...>` | queue command for approval |
 | `:MasterHandPending` | `:MHPending` | show pending actions |
+| `:MasterHandSearch <query>` | `:MHSearch <query>` | run repo search |
 
 ## Sidebar keys
 

@@ -8,6 +8,7 @@ local storage = require("master-hand.storage")
 local actions = require("master-hand.actions")
 local diff = require("master-hand.diff")
 local runner = require("master-hand.runner")
+local search = require("master-hand.search")
 
 local M = {}
 local timer = nil
@@ -53,6 +54,10 @@ end
 function M.suggest() suggestions.generate(); ui.open() end
 function M.status() vim.notify(context.summary()) end
 function M.context() ui.show_text("Master Hand Context", vim.inspect(context.snapshot())) end
+function M.search(query)
+  local hits = search.rg(state.data.root, query, config.get().context.max_search_results)
+  ui.show_text("Master Hand Search", vim.inspect(hits))
+end
 
 function M.prepare_diff(request)
   local patch, err = diff.prepare(request)

@@ -2,6 +2,7 @@ local git = require("master-hand.git")
 local state = require("master-hand.state")
 local config = require("master-hand.config")
 local path = require("master-hand.path")
+local search = require("master-hand.search")
 
 local M = {}
 
@@ -67,6 +68,8 @@ function M.snapshot()
     changed = changed,
     diff = config.get().observation.git and git.diff(root, nil, config.get().context.max_diff_bytes) or "",
     repo_files = git.ls_files(root, config.get().context.max_files),
+    related = config.get().context.include_related_files and search.related_to_goal(root, state.data.goal, config.get().context.max_search_results) or {},
+    symbols = config.get().context.include_symbols and search.symbols() or {},
     feedback = state.data.feedback,
   }
   state.data.last_context = snap

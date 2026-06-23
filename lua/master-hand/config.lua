@@ -37,6 +37,9 @@ M.defaults = {
     max_files = 80,
     max_diff_bytes = 24000,
     max_file_bytes = 12000,
+    max_search_results = 40,
+    include_related_files = true,
+    include_symbols = true,
   },
   commands = {
     allowlist = { "git", "make", "npm", "pnpm", "yarn", "cargo", "go", "pytest", "python", "lua", "nvim" },

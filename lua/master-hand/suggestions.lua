@@ -16,7 +16,12 @@ end
 
 local function heuristic(snap)
   local out = {}
-  if snap.goal and snap.goal ~= "" then table.insert(out, item("goal-plan", "Break goal into repo-aware steps", "Active goal set; identify touched modules before editing.", snap.changed_files, 0.82, "Search symbols/config related to: " .. snap.goal, "advice")) end
+  if snap.goal and snap.goal ~= "" then table.insert(out, item("goal-plan", "Break goal into repo-aware steps", "Active goal set; identify touched modules before editing.", snap.changed_files, 0.82, "Review related search hits for: " .. snap.goal, "advice")) end
+  if snap.related and #snap.related > 0 then
+    local files, seen = {}, {}
+    for _, hit in ipairs(snap.related) do if not seen[hit.file] then seen[hit.file] = true; table.insert(files, hit.file) end end
+    table.insert(out, item("related-files", "Review related files", "Goal terms appear in these files; they may need coordinated changes.", files, 0.78, "Open :MHContext and inspect related hits before editing.", "advice"))
+  end
   if snap.diagnostics.errors > 0 then table.insert(out, item("diagnostics-errors", "Resolve current diagnostics before broad changes", "Errors can hide regressions from recent edits.", snap.open_buffers, 0.88, "Open diagnostics list and fix highest-severity errors first.", "advice")) end
   if #snap.changed_files > 0 then table.insert(out, item("review-git-diff", "Review coordinated changes", "Git diff has modified files; tests/docs/config may need sync.", snap.changed_files, 0.76, "Inspect git diff and list related files that may need changes.", "advice")) end
   if #snap.recent_edits > 0 and #snap.changed_files == 0 then table.insert(out, item("save-or-check-edits", "Recent buffer edits not reflected in git diff", "Unsaved buffers may make repository context stale.", { snap.recent_edits[1].file }, 0.7, "Save buffers or refresh suggestions after editing.", "advice")) end
