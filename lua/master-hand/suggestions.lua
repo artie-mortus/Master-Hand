@@ -60,7 +60,7 @@ local function code_context(snap)
 end
 
 local function infer_model_goal(snap)
-  if config.get().model.provider == "none" or snap.goal_source == "user" then return snap end
+  if snap.goal_source == "user" then return snap end
   local enriched = vim.deepcopy(snap)
   enriched.code = code_context(enriched)
   local content = providers.complete(prompts.goal(enriched))
@@ -78,7 +78,6 @@ end
 
 -- Optional model suggestions. Failures become low-confidence advice instead of errors.
 local function provider_items(snap, mode, local_suggestions)
-  if config.get().model.provider == "none" then return {} end
   snap = vim.deepcopy(snap)
   snap.code = code_context(snap)
   local content, err = providers.complete(prompts.suggestions(snap, mode, local_suggestions))

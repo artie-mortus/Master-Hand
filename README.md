@@ -4,7 +4,7 @@
   <img src=".github/social-preview.png" alt="Master Hand project artwork" width="640">
 </p>
 
-Master Hand is a Neovim plugin for repo-aware coding suggestions.
+Master Hand is a Neovim assistant that infers your current coding goal, reads repo context, and suggests safe next steps.
 
 It observes editor and repository state, infers a current goal from your edits, and suggests useful next steps. When a model is configured, it can refine the inferred goal by reading recent edited lines and code excerpts. You can override the inferred goal at any time. It never edits files or runs commands unless you approve the pending action.
 
@@ -29,15 +29,32 @@ Example `lazy.nvim` config:
   config = function()
     require("master-hand").setup({
       proactivity = "advisory",
-      model = { provider = "none" },
+      model = { provider = "auto" },
     })
   end,
 }
 ```
 
+## Goal inference
+
+Master Hand always keeps a current goal:
+
+- Without a model, it infers the goal from recent edited lines, changed files, diagnostics, and repo state.
+- With a model, it can refine that goal by reading recent edited lines and selected code excerpts like a human code reviewer.
+- `:MasterHandGoal <goal>` overrides inference when the detected goal is wrong.
+
+## Suggestions
+
+Suggestions run in two stages:
+
+1. Local heuristics inspect the current goal, diagnostics, git diff, related files, recent edits, and repo index.
+2. If a model is configured, the model reviews those local suggestions plus read-only code context and returns additional suggestions.
+
+Suggestions are advisory. Model-backed suggestions can propose an edit or command, but nothing is applied or executed until you approve a pending action.
+
 ## Model providers
 
-Models are optional. With `provider = "none"`, Master Hand uses local heuristics only.
+Models are part of the normal workflow. Master Hand first builds local context and heuristic suggestions, then sends that read-only context to a model for goal refinement and additional suggestions. With `provider = "auto"`, it uses the first locally available Ollama model.
 
 ### OpenAI-compatible
 
@@ -120,7 +137,7 @@ require("master-hand").setup({
 Smoke test:
 
 ```sh
-nvim --headless -u NONE +'set rtp+=.' +'lua require("master-hand").setup({ model = { provider = "none" }, storage = { enabled = false } })' +'lua require("master-hand").suggest()' +qa
+nvim --headless -u NONE +'set rtp+=.' +'lua require("master-hand").setup({ model = { provider = "auto" }, storage = { enabled = false } })' +'lua require("master-hand").suggest()' +qa
 ```
 
 Full test run:

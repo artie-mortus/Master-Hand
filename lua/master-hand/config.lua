@@ -25,7 +25,7 @@ M.defaults = {
     ".env.*",
   },
   model = {
-    provider = "none", -- none | openai_compatible | ollama | anthropic
+    provider = "auto", -- auto | openai_compatible | ollama | anthropic
     endpoint = nil,
     api_key_env = nil,
     name = nil,

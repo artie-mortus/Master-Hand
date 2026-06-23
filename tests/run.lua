@@ -10,8 +10,8 @@ local index = require("master-hand.index")
 
 local function assert_eq(a, b, msg) assert(vim.deep_equal(a, b), (msg or "assert_eq") .. ": " .. vim.inspect(a) .. " ~= " .. vim.inspect(b)) end
 
-config.setup({ storage = { enabled = false }, model = { provider = "none" } })
-assert_eq(config.get().model.provider, "none")
+config.setup({ storage = { enabled = false } })
+assert_eq(config.get().model.provider, "auto")
 assert(path.is_ignored("node_modules/x.js", config.get().ignore), "node_modules ignored")
 assert(path.is_ignored(".env.local", config.get().ignore), ".env.* ignored")
 assert(not path.is_ignored("lua/x.lua", config.get().ignore), "lua file not ignored")
@@ -40,19 +40,21 @@ assert(ok and ok[1] == "git", "git status allowed")
 ok, err = runner.validate({ "npm", "run", "format" })
 assert(ok and ok[1] == "npm", "safe command with blocklist substring allowed")
 
-local content, perr = providers.complete({})
-assert(not content and perr:match("no model"), "provider none returns error")
-content, perr = providers.complete({}, { provider = "ollama" })
-assert(not content and perr:match("model.name required"), "ollama requires model name")
-content, perr = providers.complete({}, { provider = "anthropic", name = "claude-sonnet-4-20250514", api_key_env = "MASTER_HAND_TEST_MISSING_KEY" })
+local content, perr = providers.complete({}, { provider = "anthropic", name = "claude-sonnet-4-20250514", api_key_env = "MASTER_HAND_TEST_MISSING_KEY" })
 assert(not content and perr:match("api key missing"), "anthropic requires api key")
 
-require("master-hand").setup({ proactivity = "passive", storage = { enabled = false }, model = { provider = "none" } })
+providers.complete = function(messages)
+  if messages[1].content:match("Infer the user's current coding goal") then
+    return vim.json.encode({ goal = "Model inferred test goal", confidence = 0.9 })
+  end
+  return "[]"
+end
+require("master-hand").setup({ proactivity = "passive", storage = { enabled = false } })
 require("master-hand.suggestions").generate()
 local state = require("master-hand.state")
 assert(#state.data.suggestions > 0, "fallback suggestions exist")
 assert(state.data.goal and state.data.goal ~= "", "goal is always inferred")
-assert(state.data.goal_source == "inferred", "default goal source inferred")
+assert(state.data.goal_source == "model", "default goal refined by model")
 require("master-hand").set_goal("Ship explicit goal override")
 assert(state.data.goal == "Ship explicit goal override", "user goal overrides inference")
 assert(state.data.goal_source == "user", "user goal source tracked")

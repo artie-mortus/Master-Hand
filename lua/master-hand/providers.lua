@@ -29,9 +29,19 @@ local function openai_compatible(model, messages)
   return content, content and nil or "provider response missing choices[1].message.content"
 end
 
+local function local_ollama_model()
+  local res = vim.system({ "ollama", "list" }, { text = true, timeout = 3000 }):wait()
+  if res.code ~= 0 then return nil end
+  for line in (res.stdout or ""):gmatch("[^\n]+") do
+    local name = line:match("^(%S+)")
+    if name and name ~= "NAME" then return name end
+  end
+end
+
 local function ollama(model, messages)
   local endpoint = model.endpoint or "http://localhost:11434/api/chat"
-  if not model.name then return nil, "model.name required" end
+  model.name = model.name or local_ollama_model()
+  if not model.name then return nil, "no local ollama model available" end
   local decoded, err = post_json(endpoint, {
     model = model.name,
     messages = messages,
@@ -75,7 +85,7 @@ end
 
 function M.complete(messages, opts)
   local model = vim.tbl_deep_extend("force", config.get().model, opts or {})
-  if model.provider == "none" then return nil, "no model provider configured" end
+  if model.provider == "auto" then return ollama(model, messages) end
   if model.provider == "openai_compatible" then return openai_compatible(model, messages) end
   if model.provider == "ollama" then return ollama(model, messages) end
   if model.provider == "anthropic" then return anthropic(model, messages) end
