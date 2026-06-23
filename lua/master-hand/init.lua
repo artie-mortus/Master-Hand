@@ -66,6 +66,7 @@ end
 
 function M.set_goal(goal)
   state.data.goal = vim.trim(goal or "")
+  state.data.goal_source = state.data.goal ~= "" and "user" or "inferred"
   suggestions.generate({ mode = "goal" })
   save_state()
   ui.render()
@@ -73,10 +74,6 @@ function M.set_goal(goal)
 end
 
 function M.plan()
-  if not state.data.goal or state.data.goal == "" then
-    vim.notify("Set goal first: :MasterHandGoal <goal>", vim.log.levels.WARN)
-    return
-  end
   suggestions.generate({ mode = "plan" })
   ui.open()
 end

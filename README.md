@@ -6,7 +6,7 @@
 
 Master Hand is a Neovim plugin for repo-aware coding suggestions.
 
-It observes editor and repository state, tracks an optional goal, and suggests useful next steps. It never edits files or runs commands unless you approve the pending action.
+It observes editor and repository state, infers a current goal from your edits, and suggests useful next steps. When a model is configured, it can refine the inferred goal by reading recent edited lines and code excerpts. You can override the inferred goal at any time. It never edits files or runs commands unless you approve the pending action.
 
 > [!WARNING]
 > This project is currently vibe-coded and lightly reviewed. Treat it as experimental until I have more time to harden and audit it.
@@ -82,7 +82,7 @@ require("master-hand").setup({
 | --- | --- | --- |
 | `:MasterHand` | `:MH` | Open sidebar |
 | `:MasterHandClose` | `:MHClose` | Close sidebar |
-| `:MasterHandGoal <goal>` | `:MHGoal <goal>` | Set current goal |
+| `:MasterHandGoal <goal>` | `:MHGoal <goal>` | Override inferred goal |
 | `:MasterHandPlan` | `:MHPlan` | Generate plan suggestions |
 | `:MasterHandSuggest` | `:MHSuggest` | Refresh suggestions |
 | `:MasterHandStatus` | `:MHStatus` | Print context summary |

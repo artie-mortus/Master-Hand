@@ -4,6 +4,7 @@ local M = {}
 M.data = {
   root = nil,
   goal = nil,
+  goal_source = "inferred",
   recent_edits = {},
   suggestions = {},
   feedback = {},
@@ -18,8 +19,14 @@ function M.add_edit(bufnr)
   if name == "" then
     return
   end
+  local line = ""
+  local ok, cursor = pcall(vim.api.nvim_win_get_cursor, 0)
+  if ok and vim.api.nvim_get_current_buf() == bufnr then
+    line = (vim.api.nvim_buf_get_lines(bufnr, cursor[1] - 1, cursor[1], false)[1] or "")
+  end
   table.insert(M.data.recent_edits, 1, {
     file = name,
+    line = vim.trim(line),
     time = os.time(),
   })
   while #M.data.recent_edits > 20 do
@@ -41,12 +48,13 @@ end
 function M.restore(data)
   data = data or {}
   M.data.goal = data.goal or M.data.goal
+  M.data.goal_source = data.goal_source or M.data.goal_source
   M.data.feedback = data.feedback or M.data.feedback
   M.data.dismissed = data.dismissed or M.data.dismissed
 end
 
 function M.persistable()
-  return { goal = M.data.goal, feedback = M.data.feedback, dismissed = M.data.dismissed }
+  return { goal = M.data.goal, goal_source = M.data.goal_source, feedback = M.data.feedback, dismissed = M.data.dismissed }
 end
 
 return M

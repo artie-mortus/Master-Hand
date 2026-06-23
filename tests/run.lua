@@ -49,6 +49,12 @@ assert(not content and perr:match("api key missing"), "anthropic requires api ke
 
 require("master-hand").setup({ proactivity = "passive", storage = { enabled = false }, model = { provider = "none" } })
 require("master-hand.suggestions").generate()
-assert(#require("master-hand.state").data.suggestions > 0, "fallback suggestions exist")
+local state = require("master-hand.state")
+assert(#state.data.suggestions > 0, "fallback suggestions exist")
+assert(state.data.goal and state.data.goal ~= "", "goal is always inferred")
+assert(state.data.goal_source == "inferred", "default goal source inferred")
+require("master-hand").set_goal("Ship explicit goal override")
+assert(state.data.goal == "Ship explicit goal override", "user goal overrides inference")
+assert(state.data.goal_source == "user", "user goal source tracked")
 
 print("master-hand tests ok")

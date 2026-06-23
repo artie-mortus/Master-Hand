@@ -9,6 +9,13 @@ function M.suggestions(snap, mode, local_suggestions)
   }
 end
 
+function M.goal(snap)
+  return {
+    { role = "system", content = "You are Master Hand, a Neovim coding assistant. Infer the user's current coding goal by reading recent edited lines and code excerpts like a human reviewing code line by line. Return only JSON object with goal and confidence. Do not suggest edits or commands." },
+    { role = "user", content = vim.json.encode({ context = snap }) },
+  }
+end
+
 function M.diff(snap, request)
   return {
     { role = "system", content = "Return only a unified diff. Do not explain. Modify only repo-relative paths." },

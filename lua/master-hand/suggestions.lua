@@ -19,7 +19,7 @@ end
 -- Cheap local suggestions. These must work even when no model is configured.
 local function heuristic(snap)
   local out = {}
-  if snap.goal and snap.goal ~= "" then table.insert(out, item("goal-plan", "Break goal into repo-aware steps", "Active goal set; identify touched modules before editing.", snap.changed_files, 0.82, "Review related search hits for: " .. snap.goal, "advice")) end
+  if snap.goal and snap.goal ~= "" then table.insert(out, item("goal-plan", "Break goal into repo-aware steps", "Goal is " .. (snap.goal_source or "inferred") .. "; identify touched modules before editing.", snap.changed_files, 0.82, "Review related search hits for: " .. snap.goal, "advice")) end
   if snap.related and #snap.related > 0 then
     local files, seen = {}, {}
     for _, hit in ipairs(snap.related) do if not seen[hit.file] then seen[hit.file] = true; table.insert(files, hit.file) end end
@@ -28,7 +28,7 @@ local function heuristic(snap)
   if snap.diagnostics.errors > 0 then table.insert(out, item("diagnostics-errors", "Resolve current diagnostics before broad changes", "Errors can hide regressions from recent edits.", snap.open_buffers, 0.88, "Open diagnostics list and fix highest-severity errors first.", "advice")) end
   if #snap.changed_files > 0 then table.insert(out, item("review-git-diff", "Review coordinated changes", "Git diff has modified files; tests/docs/config may need sync.", snap.changed_files, 0.76, "Inspect git diff and list related files that may need changes.", "advice")) end
   if #snap.recent_edits > 0 and #snap.changed_files == 0 then table.insert(out, item("save-or-check-edits", "Recent buffer edits not reflected in git diff", "Unsaved buffers may make repository context stale.", { snap.recent_edits[1].file }, 0.7, "Save buffers or refresh suggestions after editing.", "advice")) end
-  if #out == 0 then table.insert(out, item("no-obstacle", "No immediate obstacle detected", "No visible git changes or diagnostics.", snap.open_buffers, 0.55, "Set a goal with :MasterHandGoal or request suggestions after editing.", "advice")) end
+  if #out == 0 then table.insert(out, item("no-obstacle", "No immediate obstacle detected", "No visible git changes or diagnostics.", snap.open_buffers, 0.55, "Keep typing for inferred goal updates or override with :MasterHandGoal.", "advice")) end
   return out
 end
 
@@ -59,6 +59,23 @@ local function code_context(snap)
   return out
 end
 
+local function infer_model_goal(snap)
+  if config.get().model.provider == "none" or snap.goal_source == "user" then return snap end
+  local enriched = vim.deepcopy(snap)
+  enriched.code = code_context(enriched)
+  local content = providers.complete(prompts.goal(enriched))
+  if not content then return snap end
+  local ok, decoded = pcall(vim.json.decode, content)
+  if not ok or type(decoded) ~= "table" or type(decoded.goal) ~= "string" or vim.trim(decoded.goal) == "" then return snap end
+  local confidence = math.max(0, math.min(1, tonumber(decoded.confidence) or 0.5))
+  if confidence < 0.45 then return snap end
+  snap.goal = vim.trim(decoded.goal)
+  snap.goal_source = "model"
+  state.data.goal = snap.goal
+  state.data.goal_source = snap.goal_source
+  return snap
+end
+
 -- Optional model suggestions. Failures become low-confidence advice instead of errors.
 local function provider_items(snap, mode, local_suggestions)
   if config.get().model.provider == "none" then return {} end
@@ -73,7 +90,7 @@ end
 
 function M.generate(opts)
   opts = opts or {}
-  local snap = context.snapshot()
+  local snap = infer_model_goal(context.snapshot())
   local out = {}
   local local_suggestions = heuristic(snap)
   vim.list_extend(out, local_suggestions)

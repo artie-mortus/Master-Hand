@@ -9,7 +9,7 @@ local M = { win = nil, buf = nil }
 local function lines()
   local out = { "Master Hand", string.rep("─", 32), context.summary(), "" }
   if state.data.goal then
-    table.insert(out, "Goal: " .. state.data.goal)
+    table.insert(out, "Goal: " .. state.data.goal .. " (" .. (state.data.goal_source or "inferred") .. ")")
     table.insert(out, "")
   end
   table.insert(out, "Suggestions")

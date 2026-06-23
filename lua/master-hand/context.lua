@@ -50,9 +50,22 @@ local function recent_edits(root)
   local out = {}
   for _, edit in ipairs(state.data.recent_edits or {}) do
     local rel = path.relative(root, edit.file)
-    if not path.is_ignored(rel, config.get().ignore) then table.insert(out, { file = rel, time = edit.time }) end
+    if not path.is_ignored(rel, config.get().ignore) then table.insert(out, { file = rel, line = edit.line, time = edit.time }) end
   end
   return out
+end
+
+local function infer_goal(edits, changed, diagnostics)
+  if state.data.goal_source == "user" and state.data.goal and state.data.goal ~= "" then return state.data.goal, "user" end
+  local edit = edits[1]
+  if edit and edit.line and edit.line ~= "" then
+    local text = edit.line:gsub("^%s*[%-%/%*#]+%s*", ""):gsub("%s+", " ")
+    if #text > 90 then text = text:sub(1, 87) .. "..." end
+    return "Continue implementing: " .. text, "inferred"
+  end
+  if #changed > 0 then return "Review and complete changes in " .. table.concat(changed_file_names(changed), ", "), "inferred" end
+  if diagnostics.errors > 0 then return "Fix current diagnostics", "inferred" end
+  return "Understand current repo state and suggest next step", "inferred"
 end
 
 -- Main context object. Keep deterministic/local; do not call providers from here.
@@ -61,20 +74,26 @@ function M.snapshot()
   state.data.root = root
   local changed = config.get().observation.git and git.changed_files(root) or {}
   local names = changed_file_names(changed)
+  local edits = recent_edits(root)
+  local diag = diagnostics()
+  local goal, goal_source = infer_goal(edits, changed, diag)
+  state.data.goal = goal
+  state.data.goal_source = goal_source
   local snap = {
     root = root,
     branch = git.branch(root),
-    goal = state.data.goal,
+    goal = goal,
+    goal_source = goal_source,
     open_buffers = open_buffers(root),
-    recent_edits = recent_edits(root),
-    diagnostics = diagnostics(),
+    recent_edits = edits,
+    diagnostics = diag,
     git_status = config.get().observation.git and git.status_filtered(root) or "",
     changed_files = names,
     changed = changed,
     diff = config.get().observation.git and git.diff(root, nil, config.get().context.max_diff_bytes) or "",
     repo_files = git.ls_files(root, config.get().context.max_files),
     repo_index = config.get().context.include_index and index.build(root) or {},
-    related = config.get().context.include_related_files and search.related_to_goal(root, state.data.goal, config.get().context.max_search_results) or {},
+    related = config.get().context.include_related_files and search.related_to_goal(root, goal, config.get().context.max_search_results) or {},
     symbols = config.get().context.include_symbols and search.symbols() or {},
     feedback = state.data.feedback,
   }
@@ -84,7 +103,7 @@ end
 
 function M.summary(snap)
   snap = snap or M.snapshot()
-  return string.format("root=%s branch=%s goal=%s buffers=%d changed=%d diagnostics=%dE/%dW", snap.root or "?", snap.branch or "?", snap.goal or "none", #snap.open_buffers, #snap.changed_files, snap.diagnostics.errors, snap.diagnostics.warnings)
+  return string.format("root=%s branch=%s goal=%s (%s) buffers=%d changed=%d diagnostics=%dE/%dW", snap.root or "?", snap.branch or "?", snap.goal or "none", snap.goal_source or "inferred", #snap.open_buffers, #snap.changed_files, snap.diagnostics.errors, snap.diagnostics.warnings)
 end
 
 return M
