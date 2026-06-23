@@ -40,6 +40,13 @@ M.defaults = {
     max_search_results = 40,
     include_related_files = true,
     include_symbols = true,
+    include_index = true,
+    index = {
+      max_files = 500,
+      max_file_bytes = 20000,
+      max_todos = 40,
+      max_symbols = 80,
+    },
   },
   commands = {
     allowlist = { "git", "make", "npm", "pnpm", "yarn", "cargo", "go", "pytest", "python", "lua", "nvim" },

@@ -1,5 +1,7 @@
 # Master Hand
 
+[![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/artie-mortus/Master-Hand?utm_source=oss&utm_medium=github&utm_campaign=artie-mortus%2FMaster-Hand&labelColor=171717&color=FF570A&label=CodeRabbit+Reviews)](https://coderabbit.ai)
+
 Neovim plugin for repo-aware coding suggestions.
 
 It watches basic editor/repo state, keeps an optional goal, and shows suggested next steps. It does not edit files or run commands unless you approve the pending action.
@@ -11,6 +13,7 @@ It watches basic editor/repo state, keeps an optional goal, and shows suggested 
 - open buffer / recent edit tracking
 - diagnostics summary
 - git branch/status/diff context
+- non-LLM repo index: language/extension/dir counts, entrypoints, tests, docs, TODOs, simple symbols, largest files
 - ripgrep related-file search for goal terms
 - tree-sitter symbols for current buffer when available
 - `:MHGoal` for a current task
@@ -87,6 +90,7 @@ require("master-hand").setup({
 | `:MasterHandSuggest` | `:MHSuggest` | refresh suggestions |
 | `:MasterHandStatus` | `:MHStatus` | print context summary |
 | `:MasterHandContext` | `:MHContext` | show context snapshot |
+| `:MasterHandIndex` | `:MHIndex` | show non-LLM repo index |
 | `:MasterHandDiff [request]` | `:MHDiff [request]` | prepare proposed diff via model |
 | `:MasterHandApprove [id]` | `:MHApprove [id]` | approve pending action |
 | `:MasterHandReject [id]` | `:MHReject [id]` | reject pending action |

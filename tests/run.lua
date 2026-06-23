@@ -5,6 +5,7 @@ local schema = require("master-hand.schema")
 local runner = require("master-hand.runner")
 local providers = require("master-hand.providers")
 local search = require("master-hand.search")
+local index = require("master-hand.index")
 
 local function assert_eq(a, b, msg) assert(vim.deep_equal(a, b), (msg or "assert_eq") .. ": " .. vim.inspect(a) .. " ~= " .. vim.inspect(b)) end
 
@@ -14,6 +15,10 @@ assert(path.is_ignored("node_modules/x.js", config.get().ignore), "node_modules 
 assert(path.is_ignored(".env.local", config.get().ignore), ".env.* ignored")
 assert(not path.is_ignored("lua/x.lua", config.get().ignore), "lua file not ignored")
 assert(#search.goal_terms("Add configurable keybindings to plugin") >= 2, "goal terms extracted")
+local idx = index.build(vim.fn.getcwd())
+assert(idx.files_seen > 0, "index sees repo files")
+assert(idx.languages.Lua and idx.languages.Lua > 0, "index detects Lua files")
+assert(#idx.entrypoints > 0, "index detects entrypoints")
 
 local s = schema.suggestion({ title = "Do thing", confidence = 9, action_type = "command" })
 assert_eq(s.confidence, 1)

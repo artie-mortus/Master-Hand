@@ -13,6 +13,7 @@ local commands = {
   MasterHandSuggest = { fn = function() mh.suggest() end, opts = {}, aliases = { "MHSuggest" } },
   MasterHandStatus = { fn = function() mh.status() end, opts = {}, aliases = { "MHStatus" } },
   MasterHandContext = { fn = function() mh.context() end, opts = {}, aliases = { "MHContext" } },
+  MasterHandIndex = { fn = function() mh.index() end, opts = {}, aliases = { "MHIndex" } },
   MasterHandDiff = { fn = function(opts) mh.prepare_diff(opts.args) end, opts = { nargs = "*" }, aliases = { "MHDiff" } },
   MasterHandApprove = { fn = function(opts) mh.approve(opts.args) end, opts = { nargs = "?" }, aliases = { "MHApprove" } },
   MasterHandReject = { fn = function(opts) mh.reject(opts.args) end, opts = { nargs = "?" }, aliases = { "MHReject" } },

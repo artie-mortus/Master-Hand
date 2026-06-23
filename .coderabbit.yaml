@@ -1,0 +1,36 @@
+language: "en-US"
+early_access: false
+
+reviews:
+  profile: "chill"
+  request_changes_workflow: false
+  high_level_summary: true
+  review_status: true
+  review_details: false
+  poem: false
+  collapse_walkthrough: false
+  sequence_diagrams: true
+  path_filters:
+    - "!**/.git/**"
+    - "!**/node_modules/**"
+    - "!**/dist/**"
+    - "!**/build/**"
+    - "!**/coverage/**"
+    - "!**/.env*"
+    - "!**/*.min.js"
+    - "!**/*.lock"
+  path_instructions:
+    - path: "**/*"
+      instructions: |
+        Prioritize correctness, safety, Neovim Lua compatibility, tests, and maintainability.
+        Avoid nit-only comments. Treat generated, vendored, and ignored paths as out of scope.
+        For this plugin, verify model usage stays optional and edits/commands stay approval-gated.
+  auto_review:
+    enabled: true
+    drafts: false
+
+chat:
+  auto_reply: true
+
+knowledge_base:
+  opt_out: false
