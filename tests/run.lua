@@ -42,6 +42,8 @@ assert(ok and ok[1] == "npm", "safe command with blocklist substring allowed")
 
 local content, perr = providers.complete({}, { provider = "anthropic", name = "claude-sonnet-4-20250514", api_key_env = "MASTER_HAND_TEST_MISSING_KEY" })
 assert(not content and perr:match("api key missing"), "anthropic requires api key")
+content, perr = providers.complete({}, { provider = "openrouter", name = "anthropic/claude-3.5-sonnet", api_key_env = "MASTER_HAND_TEST_MISSING_KEY" })
+assert(not content and perr:match("openrouter api key missing"), "openrouter requires api key")
 
 providers.complete = function(messages)
   if messages[1].content:match("Infer the user's current coding goal") then

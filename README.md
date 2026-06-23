@@ -81,6 +81,18 @@ require("master-hand").setup({
 })
 ```
 
+### OpenRouter
+
+```lua
+require("master-hand").setup({
+  model = {
+    provider = "openrouter",
+    name = "anthropic/claude-3.5-sonnet",
+    api_key_env = "OPENROUTER_API_KEY", -- optional default
+  },
+})
+```
+
 ### Anthropic
 
 ```lua

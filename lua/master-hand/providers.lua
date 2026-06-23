@@ -29,6 +29,14 @@ local function openai_compatible(model, messages)
   return content, content and nil or "provider response missing choices[1].message.content"
 end
 
+local function openrouter(model, messages)
+  model.endpoint = model.endpoint or "https://openrouter.ai/api/v1/chat/completions"
+  model.api_key_env = model.api_key_env or "OPENROUTER_API_KEY"
+  local key = os.getenv(model.api_key_env) or ""
+  if key == "" then return nil, "openrouter api key missing: set model.api_key_env" end
+  return openai_compatible(model, messages)
+end
+
 local function local_ollama_model()
   local res = vim.system({ "ollama", "list" }, { text = true, timeout = 3000 }):wait()
   if res.code ~= 0 then return nil end
@@ -87,6 +95,7 @@ function M.complete(messages, opts)
   local model = vim.tbl_deep_extend("force", config.get().model, opts or {})
   if model.provider == "auto" then return ollama(model, messages) end
   if model.provider == "openai_compatible" then return openai_compatible(model, messages) end
+  if model.provider == "openrouter" then return openrouter(model, messages) end
   if model.provider == "ollama" then return ollama(model, messages) end
   if model.provider == "anthropic" then return anthropic(model, messages) end
   return nil, "provider not implemented: " .. tostring(model.provider)
