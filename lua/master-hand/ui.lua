@@ -7,7 +7,9 @@ local actions = require("master-hand.actions")
 local M = { win = nil, buf = nil }
 
 local function lines()
-  local out = { "Master Hand", string.rep("─", 32), context.summary(), "" }
+  -- Render from cached context; avoid blocking git/rg/index/model work during UI close/quit/render.
+  local summary = state.data.last_context and context.summary(state.data.last_context) or "No context yet; run :MHSuggest to refresh."
+  local out = { "Master Hand", string.rep("─", 32), summary, "" }
   if state.data.short_term_goal or state.data.long_term_goal then
     table.insert(out, "Steering")
     table.insert(out, "  short: " .. (state.data.short_term_goal or state.data.goal or "none") .. " (" .. (state.data.short_term_goal_source or state.data.goal_source or "inferred") .. ")")

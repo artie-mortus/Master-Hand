@@ -23,13 +23,18 @@ local function refresh_suggestions()
   ui.render()
 end
 
-local function debounce_suggest()
-  local opts = config.get()
-  if opts.proactivity == "passive" then return end
+local function stop_timer()
   if timer then
     timer:stop()
     timer:close()
+    timer = nil
   end
+end
+
+local function debounce_suggest()
+  local opts = config.get()
+  if opts.proactivity == "passive" then return end
+  stop_timer()
   timer = vim.loop.new_timer()
   timer:start(opts.suggestion_frequency_ms, 0, vim.schedule_wrap(refresh_suggestions))
 end
@@ -45,7 +50,13 @@ local function setup_autocmds()
     end,
   })
   vim.api.nvim_create_autocmd("DiagnosticChanged", { group = group, callback = debounce_suggest })
-  vim.api.nvim_create_autocmd("VimLeavePre", { group = group, callback = save_state })
+  vim.api.nvim_create_autocmd("VimLeavePre", {
+    group = group,
+    callback = function()
+      stop_timer()
+      save_state()
+    end,
+  })
 end
 
 function M.setup(opts)
