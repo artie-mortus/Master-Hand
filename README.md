@@ -1,23 +1,24 @@
 # Master Hand
 
-Neovim-first AI coding assistant between tab completion and autonomous agents.
+Neovim plugin for repo-aware coding suggestions.
 
-Master Hand observes repository activity, tracks an optional development goal, and surfaces advisory next steps. It never edits files or runs commands without explicit approval.
+It watches basic editor/repo state, keeps an optional goal, and shows suggested next steps. It does not edit files or run commands unless you approve the pending action.
 
-## Features
+## What works
 
 - Neovim Lua plugin
-- repo context: buffers, edits, diagnostics, git status/diff, branch, tracked files
-- goal-driven suggestions via `:MHGoal`
-- observer-mode heuristic suggestions
-- optional OpenAI-compatible model provider
-- structured suggestions: title, reason, files, confidence, next action, approval flag
-- sidebar UI with accept/dismiss/postpone feedback
-- persisted goal/feedback in Neovim state dir
-- pending action registry
-- approved command runner with blocklist/allowlist
-- proposed diff generation/preview/apply after approval
-- ignored paths for privacy: `.git/`, `node_modules/`, `.env*`, build dirs
+- sidebar UI
+- open buffer / recent edit tracking
+- diagnostics summary
+- git branch/status/diff context
+- `:MHGoal` for a current task
+- local heuristic suggestions
+- optional OpenAI-compatible chat endpoint
+- accept / dismiss / postpone feedback
+- persisted goal and feedback
+- pending command approval
+- proposed diff preview/apply after approval
+- ignore list for `.git/`, `node_modules/`, `.env*`, build dirs
 
 ## Install with lazy.nvim
 
@@ -36,7 +37,7 @@ Master Hand observes repository activity, tracks an optional development goal, a
 
 ## Optional model provider
 
-OpenAI-compatible endpoint:
+Example with an OpenAI-compatible local endpoint:
 
 ```lua
 require("master-hand").setup({
@@ -51,29 +52,38 @@ require("master-hand").setup({
 
 ## Commands
 
-- `:MasterHand` / `:MH` open sidebar
-- `:MasterHandClose` / `:MHClose` close sidebar
-- `:MasterHandGoal <goal>` / `:MHGoal <goal>` set active goal
-- `:MasterHandPlan` / `:MHPlan` generate plan suggestions
-- `:MasterHandSuggest` / `:MHSuggest` refresh suggestions
-- `:MasterHandStatus` / `:MHStatus` print context summary
-- `:MasterHandContext` / `:MHContext` show context snapshot
-- `:MasterHandDiff [request]` / `:MHDiff [request]` prepare proposed diff via model
-- `:MasterHandApprove [id]` / `:MHApprove [id]` approve pending action
-- `:MasterHandReject [id]` / `:MHReject [id]` reject pending action
-- `:MasterHandRun <argv...>` / `:MHRun <argv...>` create approved command action
-- `:MasterHandPending` / `:MHPending` show pending actions
+| Command | Alias | Description |
+| --- | --- | --- |
+| `:MasterHand` | `:MH` | open sidebar |
+| `:MasterHandClose` | `:MHClose` | close sidebar |
+| `:MasterHandGoal <goal>` | `:MHGoal <goal>` | set goal |
+| `:MasterHandPlan` | `:MHPlan` | generate plan suggestions |
+| `:MasterHandSuggest` | `:MHSuggest` | refresh suggestions |
+| `:MasterHandStatus` | `:MHStatus` | print context summary |
+| `:MasterHandContext` | `:MHContext` | show context snapshot |
+| `:MasterHandDiff [request]` | `:MHDiff [request]` | prepare proposed diff via model |
+| `:MasterHandApprove [id]` | `:MHApprove [id]` | approve pending action |
+| `:MasterHandReject [id]` | `:MHReject [id]` | reject pending action |
+| `:MasterHandRun <argv...>` | `:MHRun <argv...>` | queue command for approval |
+| `:MasterHandPending` | `:MHPending` | show pending actions |
 
-## Safety model
+## Sidebar keys
 
-Default behavior:
+- `a` accept suggestion
+- `d` dismiss suggestion
+- `p` postpone suggestion
+- `v` view details
+- `r` refresh
+- `q` close
 
-- reads repo context only, respecting ignored paths
-- no automatic edits
-- no automatic command execution
-- proposed diffs run `git apply --check` before approval and before apply
-- commands are argv-only, no shell metacharacters, dangerous commands blocked
-- feedback is persisted; pending diffs are not persisted
+## Safety
+
+- No automatic edits.
+- No automatic command execution.
+- Diffs must pass `git apply --check` before approval and again before apply.
+- Commands use argv, not shell strings.
+- Shell metacharacters and dangerous commands are blocked.
+- Pending diffs are not saved to disk.
 
 ## Test
 
@@ -82,6 +92,9 @@ nvim --headless -u NONE +'set rtp+=.' +'lua require("master-hand").setup({ model
 nvim --headless -u NONE +'set rtp+=.' +'luafile tests/run.lua' +qa
 ```
 
-## MVP exclusions
+## Non-goals
 
-Master Hand remains advisory. It does not autonomously implement features, run destructive commands, or make broad architecture changes without explicit approval.
+- no autonomous feature implementation
+- no background shell agent
+- no destructive commands
+- no broad architecture changes without explicit approval
