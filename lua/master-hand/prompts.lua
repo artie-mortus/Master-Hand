@@ -11,7 +11,7 @@ end
 
 function M.goal(snap)
   return {
-    { role = "system", content = "You are Master Hand, a Neovim coding assistant. Infer the user's current coding goal by reading recent edited lines and code excerpts like a human reviewing code line by line. Return only JSON object with goal and confidence. Do not suggest edits or commands." },
+    { role = "system", content = "You are Master Hand, a Neovim coding assistant. Infer steering intent, not a hard goal. Maintain long_term_goal as user/project direction and short_term_goal as immediate repo-aware next objective informed by long_term_goal. Return only JSON object with long_term_goal, short_term_goal, confidence. Do not suggest edits or commands." },
     { role = "user", content = vim.json.encode({ context = snap }) },
   }
 end

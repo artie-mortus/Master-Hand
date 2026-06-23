@@ -33,19 +33,21 @@ Example `lazy.nvim` config:
 }
 ```
 
-## Goal inference
+## Goal steering
 
-Master Hand always keeps a current goal:
+Master Hand keeps steering intent instead of one hard goal:
 
-- Local heuristics infer an initial goal from recent edited lines, changed files, diagnostics, and repo state.
-- The configured model refines that goal by reading recent edited lines and selected code excerpts like a human code reviewer.
-- `:MasterHandGoal <goal>` overrides inference when the detected goal is wrong.
+- Long-term goal captures user/project direction.
+- Short-term goal captures immediate repo-aware work from recent edited lines, changed files, diagnostics, and repo state.
+- The short-term goal is informed by the long-term goal, but local evidence can still change the next step.
+- The configured model refines both goals by reading recent edited lines and selected code excerpts like a human code reviewer.
+- `:MasterHandGoal <goal>` sets long-term steering when inferred direction is wrong.
 
 ## Suggestions
 
 Suggestions run in two stages:
 
-1. Local heuristics inspect the current goal, diagnostics, git diff, related files, recent edits, and repo index.
+1. Local heuristics inspect short/long-term steering goals, diagnostics, git diff, related files, recent edits, and repo index.
 2. The configured model reviews those local suggestions plus read-only code context and returns additional suggestions.
 
 Model-backed suggestions can propose an edit or command, but nothing is applied or executed until you approve a pending action.
@@ -109,7 +111,7 @@ require("master-hand").setup({
 | --- | --- | --- |
 | `:MasterHand` | `:MH` | Open sidebar |
 | `:MasterHandClose` | `:MHClose` | Close sidebar |
-| `:MasterHandGoal <goal>` | `:MHGoal <goal>` | Override inferred goal |
+| `:MasterHandGoal <goal>` | `:MHGoal <goal>` | Set long-term steering goal |
 | `:MasterHandPlan` | `:MHPlan` | Generate plan suggestions |
 | `:MasterHandSuggest` | `:MHSuggest` | Refresh suggestions |
 | `:MasterHandStatus` | `:MHStatus` | Print context summary |

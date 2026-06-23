@@ -19,7 +19,7 @@ end
 -- Cheap local suggestions. These must work even when no model is configured.
 local function heuristic(snap)
   local out = {}
-  if snap.goal and snap.goal ~= "" then table.insert(out, item("goal-plan", "Break goal into repo-aware steps", "Goal is " .. (snap.goal_source or "inferred") .. "; identify touched modules before editing.", snap.changed_files, 0.82, "Review related search hits for: " .. snap.goal, "advice")) end
+  if snap.short_term_goal and snap.short_term_goal ~= "" then table.insert(out, item("goal-plan", "Break steering goal into repo-aware steps", "Short-term goal is " .. (snap.short_term_goal_source or "inferred") .. "; long-term steering is " .. (snap.long_term_goal or "unspecified") .. ".", snap.changed_files, 0.82, "Review related search hits for: " .. table.concat({ snap.short_term_goal, snap.long_term_goal or "" }, " "), "advice")) end
   if snap.related and #snap.related > 0 then
     local files, seen = {}, {}
     for _, hit in ipairs(snap.related) do if not seen[hit.file] then seen[hit.file] = true; table.insert(files, hit.file) end end
@@ -60,19 +60,34 @@ local function code_context(snap)
 end
 
 local function infer_model_goal(snap)
-  if snap.goal_source == "user" then return snap end
+  if snap.long_term_goal_source == "user" and snap.short_term_goal_source == "user" then return snap end
   local enriched = vim.deepcopy(snap)
   enriched.code = code_context(enriched)
   local content = providers.complete(prompts.goal(enriched))
   if not content then return snap end
   local ok, decoded = pcall(vim.json.decode, content)
-  if not ok or type(decoded) ~= "table" or type(decoded.goal) ~= "string" or vim.trim(decoded.goal) == "" then return snap end
+  if not ok or type(decoded) ~= "table" then return snap end
   local confidence = math.max(0, math.min(1, tonumber(decoded.confidence) or 0.5))
   if confidence < 0.45 then return snap end
-  snap.goal = vim.trim(decoded.goal)
-  snap.goal_source = "model"
+  if type(decoded.long_term_goal) == "string" and vim.trim(decoded.long_term_goal) ~= "" and snap.long_term_goal_source ~= "user" then
+    snap.long_term_goal = vim.trim(decoded.long_term_goal)
+    snap.long_term_goal_source = "model"
+  end
+  if type(decoded.short_term_goal) == "string" and vim.trim(decoded.short_term_goal) ~= "" and snap.short_term_goal_source ~= "user" then
+    snap.short_term_goal = vim.trim(decoded.short_term_goal)
+    snap.short_term_goal_source = "model"
+  elseif type(decoded.goal) == "string" and vim.trim(decoded.goal) ~= "" and snap.short_term_goal_source ~= "user" then
+    snap.short_term_goal = vim.trim(decoded.goal)
+    snap.short_term_goal_source = "model"
+  end
+  snap.goal = (snap.short_term_goal or "") .. " (steered by: " .. (snap.long_term_goal or "") .. ")"
+  snap.goal_source = snap.short_term_goal_source
   state.data.goal = snap.goal
   state.data.goal_source = snap.goal_source
+  state.data.short_term_goal = snap.short_term_goal
+  state.data.short_term_goal_source = snap.short_term_goal_source
+  state.data.long_term_goal = snap.long_term_goal
+  state.data.long_term_goal_source = snap.long_term_goal_source
   return snap
 end
 

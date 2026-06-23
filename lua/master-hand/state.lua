@@ -5,6 +5,10 @@ M.data = {
   root = nil,
   goal = nil,
   goal_source = "inferred",
+  long_term_goal = nil,
+  long_term_goal_source = "inferred",
+  short_term_goal = nil,
+  short_term_goal_source = "inferred",
   recent_edits = {},
   suggestions = {},
   feedback = {},
@@ -49,12 +53,25 @@ function M.restore(data)
   data = data or {}
   M.data.goal = data.goal or M.data.goal
   M.data.goal_source = data.goal_source or M.data.goal_source
+  M.data.long_term_goal = data.long_term_goal or M.data.long_term_goal or M.data.goal
+  M.data.long_term_goal_source = data.long_term_goal_source or M.data.long_term_goal_source or M.data.goal_source
+  M.data.short_term_goal = data.short_term_goal or M.data.short_term_goal
+  M.data.short_term_goal_source = data.short_term_goal_source or M.data.short_term_goal_source
   M.data.feedback = data.feedback or M.data.feedback
   M.data.dismissed = data.dismissed or M.data.dismissed
 end
 
 function M.persistable()
-  return { goal = M.data.goal, goal_source = M.data.goal_source, feedback = M.data.feedback, dismissed = M.data.dismissed }
+  return {
+    goal = M.data.goal,
+    goal_source = M.data.goal_source,
+    long_term_goal = M.data.long_term_goal,
+    long_term_goal_source = M.data.long_term_goal_source,
+    short_term_goal = M.data.short_term_goal,
+    short_term_goal_source = M.data.short_term_goal_source,
+    feedback = M.data.feedback,
+    dismissed = M.data.dismissed,
+  }
 end
 
 return M

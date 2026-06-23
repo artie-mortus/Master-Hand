@@ -65,12 +65,13 @@ function M.close()
 end
 
 function M.set_goal(goal)
-  state.data.goal = vim.trim(goal or "")
-  state.data.goal_source = state.data.goal ~= "" and "user" or "inferred"
+  state.data.long_term_goal = vim.trim(goal or "")
+  state.data.long_term_goal_source = state.data.long_term_goal ~= "" and "user" or "inferred"
+  state.data.short_term_goal_source = state.data.short_term_goal_source == "user" and "user" or "inferred"
   suggestions.generate({ mode = "goal" })
   save_state()
   ui.render()
-  vim.notify("Master Hand goal set: " .. state.data.goal)
+  vim.notify("Master Hand steering goal set: " .. state.data.long_term_goal)
 end
 
 function M.plan()

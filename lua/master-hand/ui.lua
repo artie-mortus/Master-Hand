@@ -8,8 +8,10 @@ local M = { win = nil, buf = nil }
 
 local function lines()
   local out = { "Master Hand", string.rep("─", 32), context.summary(), "" }
-  if state.data.goal then
-    table.insert(out, "Goal: " .. state.data.goal .. " (" .. (state.data.goal_source or "inferred") .. ")")
+  if state.data.short_term_goal or state.data.long_term_goal then
+    table.insert(out, "Steering")
+    table.insert(out, "  short: " .. (state.data.short_term_goal or state.data.goal or "none") .. " (" .. (state.data.short_term_goal_source or state.data.goal_source or "inferred") .. ")")
+    table.insert(out, "  long:  " .. (state.data.long_term_goal or "none") .. " (" .. (state.data.long_term_goal_source or "inferred") .. ")")
     table.insert(out, "")
   end
   table.insert(out, "Suggestions")

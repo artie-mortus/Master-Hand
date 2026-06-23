@@ -46,8 +46,8 @@ content, perr = providers.complete({}, { provider = "openrouter", name = "anthro
 assert(not content and perr:match("openrouter api key missing"), "openrouter requires api key")
 
 providers.complete = function(messages)
-  if messages[1].content:match("Infer the user's current coding goal") then
-    return vim.json.encode({ goal = "Model inferred test goal", confidence = 0.9 })
+  if messages[1].content:match("Infer steering intent") then
+    return vim.json.encode({ long_term_goal = "Model inferred long goal", short_term_goal = "Model inferred short goal", confidence = 0.9 })
   end
   return "[]"
 end
@@ -55,10 +55,12 @@ require("master-hand").setup({ proactivity = "passive", storage = { enabled = fa
 require("master-hand.suggestions").generate()
 local state = require("master-hand.state")
 assert(#state.data.suggestions > 0, "fallback suggestions exist")
-assert(state.data.goal and state.data.goal ~= "", "goal is always inferred")
-assert(state.data.goal_source == "model", "default goal refined by model")
+assert(state.data.short_term_goal and state.data.short_term_goal ~= "", "short-term goal is always inferred")
+assert(state.data.long_term_goal and state.data.long_term_goal ~= "", "long-term goal is always inferred")
+assert(state.data.short_term_goal_source == "model", "default short-term goal refined by model")
 require("master-hand").set_goal("Ship explicit goal override")
-assert(state.data.goal == "Ship explicit goal override", "user goal overrides inference")
-assert(state.data.goal_source == "user", "user goal source tracked")
+assert(state.data.long_term_goal == "Ship explicit goal override", "user goal steers long-term intent")
+assert(state.data.long_term_goal_source == "user", "user steering source tracked")
+assert(state.data.short_term_goal and state.data.short_term_goal ~= "", "short-term goal remains available")
 
 print("master-hand tests ok")
