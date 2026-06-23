@@ -27,7 +27,7 @@ function M.prepare(request)
   local content, err = providers.complete(prompts.diff(snap, request or snap.goal or "prepare proposed edit"))
   if not content then return nil, err end
   local bad = unsafe(content); if bad then return nil, bad end
-  local check = vim.system({ "git", "-C", snap.root, "apply", "--check", "-" }, { text = true, stdin = content }):wait()
+  local check = vim.system({ "git", "-C", snap.root, "apply", "--check", "-" }, { text = true, stdin = content, timeout = config.get().model.timeout_ms }):wait()
   if check.code ~= 0 then return nil, check.stderr or "git apply --check failed" end
   return content
 end
@@ -35,9 +35,9 @@ end
 -- Re-check before apply so approved stale patches cannot sneak through.
 function M.apply(root, diff)
   local bad = unsafe(diff); if bad then return false, bad end
-  local check = vim.system({ "git", "-C", root, "apply", "--check", "-" }, { text = true, stdin = diff }):wait()
+  local check = vim.system({ "git", "-C", root, "apply", "--check", "-" }, { text = true, stdin = diff, timeout = config.get().model.timeout_ms }):wait()
   if check.code ~= 0 then return false, check.stderr or "git apply --check failed" end
-  local res = vim.system({ "git", "-C", root, "apply", "-" }, { text = true, stdin = diff }):wait()
+  local res = vim.system({ "git", "-C", root, "apply", "-" }, { text = true, stdin = diff, timeout = config.get().model.timeout_ms }):wait()
   return res.code == 0, res.stderr
 end
 

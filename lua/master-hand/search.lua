@@ -18,7 +18,7 @@ function M.rg(root, query, limit)
   local args = { "rg", "--line-number", "--column", "--no-heading", "--smart-case", "--max-count", "5" }
   vim.list_extend(args, ignored_args())
   table.insert(args, query)
-  local res = vim.system(args, { cwd = root, text = true }):wait()
+  local res = vim.system(args, { cwd = root, text = true, timeout = config.get().model.timeout_ms }):wait()
   local out = {}
   if res.code ~= 0 and (res.stdout or "") == "" then return out end
   for line in (res.stdout or ""):gmatch("[^\n]+") do

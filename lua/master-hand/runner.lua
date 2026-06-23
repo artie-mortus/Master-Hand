@@ -54,7 +54,8 @@ end
 function M.run(root, argv)
   local ok, err = M.validate(argv)
   if not ok then return nil, err end
-  local res = vim.system(ok, { cwd = root, text = true }):wait()
+  local timeout = config.get().commands.timeout_ms or config.get().model.timeout_ms
+  local res = vim.system(ok, { cwd = root, text = true, timeout = timeout }):wait()
   return { code = res.code, stdout = res.stdout or "", stderr = res.stderr or "", argv = ok }
 end
 

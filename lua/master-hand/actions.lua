@@ -11,13 +11,14 @@ function M.create(action)
   return action
 end
 function M.get(id)
-  return state.data.pending_actions[id]
+  local action = state.data.pending_actions[id]
+  if action and action.status == "pending" then return action end
 end
 
 function M.list()
   local out = {}
   for _, action in pairs(state.data.pending_actions) do
-    table.insert(out, action)
+    if action.status == "pending" then table.insert(out, action) end
   end
   table.sort(out, function(a, b) return tostring(a.id) < tostring(b.id) end)
   return out

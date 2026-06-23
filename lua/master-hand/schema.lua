@@ -15,7 +15,7 @@ function M.suggestion(item)
     confidence = math.max(0, math.min(1, tonumber(item.confidence) or 0.5)),
     next_action = tostring(item.next_action or ""),
     action_type = action_type,
-    requires_approval = item.requires_approval ~= nil and item.requires_approval or (action_type ~= "advice"),
+    requires_approval = action_type ~= "advice" or item.requires_approval == true,
     command = item.command,
     diff_request = item.diff_request,
   }

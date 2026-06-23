@@ -15,7 +15,7 @@ local function open_buffers(root)
   for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
     if vim.api.nvim_buf_is_loaded(bufnr) then
       local name = vim.api.nvim_buf_get_name(bufnr)
-      if name ~= "" and (not root or name:find(root, 1, true) == 1) then
+      if name ~= "" and (not root or name == root or name:find(path.normalize(root) .. "/", 1, true) == 1) then
         local rel = path.relative(root, name)
         if not path.is_ignored(rel, config.get().ignore) then table.insert(items, rel) end
       end

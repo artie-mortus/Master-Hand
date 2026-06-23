@@ -12,7 +12,7 @@ local function run(root, args)
 end
 
 function M.root()
-  local out = vim.system({ "git", "rev-parse", "--show-toplevel" }, { text = true }):wait()
+  local out = vim.system({ "git", "rev-parse", "--show-toplevel" }, { text = true, timeout = config.get().model.timeout_ms }):wait()
   if out.code == 0 then return vim.trim(out.stdout) end
   return vim.loop.cwd()
 end

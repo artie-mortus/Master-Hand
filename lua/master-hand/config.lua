@@ -55,6 +55,7 @@ M.defaults = {
   commands = {
     allowlist = { "git", "make", "npm", "pnpm", "yarn", "cargo", "go", "pytest", "python", "lua", "nvim" },
     blocklist = { "rm", "sudo", "git reset", "git clean" },
+    timeout_ms = 10000,
   },
   storage = {
     enabled = true,

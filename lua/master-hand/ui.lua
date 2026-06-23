@@ -6,6 +6,11 @@ local actions = require("master-hand.actions")
 
 local M = { win = nil, buf = nil }
 
+local function one_line(value)
+  local text = tostring(value or "")
+  return (text:gsub("%s*\n%s*", " "))
+end
+
 local function lines()
   -- Render from cached context; avoid blocking git/rg/index/model work during UI close/quit/render.
   local summary = state.data.last_context and context.summary(state.data.last_context) or "No context yet; run :MHSuggest to refresh."
@@ -18,17 +23,17 @@ local function lines()
   end
   table.insert(out, "Suggestions")
   for i, s in ipairs(state.data.suggestions) do
-    table.insert(out, string.format("%d. %s", i, s.title))
-    table.insert(out, "   " .. s.reason)
-    table.insert(out, string.format("   confidence: %.2f | action: %s", s.confidence or 0, s.action_type))
+    table.insert(out, string.format("%d. %s", i, one_line(s.title)))
+    table.insert(out, "   " .. one_line(s.reason))
+    table.insert(out, string.format("   confidence: %.2f | action: %s", s.confidence or 0, one_line(s.action_type)))
     if s.requires_approval then table.insert(out, "   approval required") end
-    if #s.files > 0 then table.insert(out, "   files: " .. table.concat(s.files, ", ")) end
-    table.insert(out, "   next: " .. s.next_action)
+    if #s.files > 0 then table.insert(out, "   files: " .. one_line(table.concat(s.files, ", "))) end
+    table.insert(out, "   next: " .. one_line(s.next_action))
     table.insert(out, "")
   end
   table.insert(out, "Pending approvals")
   for _, a in ipairs(actions.list()) do
-    table.insert(out, string.format("- %s [%s] %s", a.id, a.status, a.title or a.type))
+    table.insert(out, string.format("- %s [%s] %s", a.id, a.status, one_line(a.title or a.type)))
   end
   if state.data.last_command then
     table.insert(out, "")
