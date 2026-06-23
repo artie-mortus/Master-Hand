@@ -129,9 +129,3 @@ Full test run:
 nvim --headless -u NONE +'set rtp+=.' +'luafile tests/run.lua' +qa
 ```
 
-## Non-goals
-
-- Autonomous feature implementation
-- Background shell agents
-- Destructive commands
-- Broad architecture changes without explicit approval
