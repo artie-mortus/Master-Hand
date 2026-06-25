@@ -15,6 +15,7 @@ local function assert_eq(a, b, msg) assert(vim.deep_equal(a, b), (msg or "assert
 
 config.setup({ storage = { enabled = false } })
 assert_eq(config.get().model.provider, "auto")
+assert_eq(config.get().model.timeout_ms, 60000, "model timeout allows cold local models")
 assert(path.is_ignored("node_modules/x.js", config.get().ignore), "node_modules ignored")
 assert(path.is_ignored(".env.local", config.get().ignore), ".env.* ignored")
 assert(not path.is_ignored("lua/x.lua", config.get().ignore), "lua file not ignored")
@@ -38,6 +39,18 @@ assert_eq(actions.get(action.id), nil, "approved actions stop being pending")
 assert_eq(#actions.list(), 0)
 state.set_suggestions({ schema.suggestion({ title = "Multiline", reason = "line one\nline two", next_action = "retry\nnow" }) })
 ui.render()
+local old_columns = vim.o.columns
+vim.o.columns = 120
+config.setup({ storage = { enabled = false }, ui = { width = 46, max_width_ratio = 0.45 } })
+ui.open()
+assert_eq(vim.api.nvim_win_get_width(ui.win), 46, "sidebar uses configured width when room exists")
+assert_eq(vim.wo[ui.win].winfixwidth, true, "sidebar keeps fixed width across terminal resize")
+vim.o.columns = 80
+ui.apply_width()
+assert_eq(vim.api.nvim_win_get_width(ui.win), 36, "sidebar clamps to max screen ratio")
+ui.close()
+vim.o.columns = old_columns
+config.setup({ storage = { enabled = false } })
 
 local ok, err = runner.validate({ "rm", "-rf", "." })
 assert(not ok and err:match("blocked"), "rm blocked")
@@ -54,12 +67,53 @@ assert(ok and ok[1] == "git", "git status allowed")
 ok, err = runner.validate({ "npm", "run", "format" })
 assert(ok and ok[1] == "npm", "safe command with blocklist substring allowed")
 
-local content, perr = providers.complete({}, { provider = "anthropic", name = "claude-sonnet-4-20250514", api_key_env = "MASTER_HAND_TEST_MISSING_KEY" })
+local original_system = vim.system
+vim.system = function()
+  return { wait = function() return { code = 124, signal = 15, stdout = "", stderr = "" } end }
+end
+local content, perr = providers.complete({}, { provider = "openai_compatible", endpoint = "http://example.invalid", name = "x", timeout_ms = 1234 })
+assert(not content and perr:match("timed out after 1%.2s"), "provider timeout includes actionable error")
+vim.system = function()
+  return { wait = function() return { code = 0, signal = 0, stdout = '{"choices":[{"message":{"content":"[]"}}]}', stderr = "" } end }
+end
+content, perr = providers.complete({}, { provider = "openai_compatible", endpoint = "http://example.invalid", name = "x" })
+assert_eq(content, "[]", "provider returns content")
+assert_eq(perr, nil, "successful provider call has nil error")
+vim.system = original_system
+
+content, perr = providers.complete({}, { provider = "anthropic", name = "claude-sonnet-4-20250514", api_key_env = "MASTER_HAND_TEST_MISSING_KEY" })
 assert(not content and perr:match("api key missing"), "anthropic requires api key")
 content, perr = providers.complete({}, { provider = "openrouter", name = "anthropic/claude-3.5-sonnet", api_key_env = "MASTER_HAND_TEST_MISSING_KEY" })
 assert(not content and perr:match("openrouter api key missing"), "openrouter requires api key")
 content, perr = providers.complete({}, { provider = "none" })
 assert(not content and perr:match("disabled"), "provider none disables model calls")
+
+local mh = require("master-hand")
+mh.setup({ proactivity = "passive", storage = { enabled = false }, model = { provider = "auto", name = "old", endpoint = "http://old" } })
+mh.model({ "ollama", "qwen3-coder-local:latest" })
+assert_eq(config.get().model.provider, "ollama", ":MHModel sets provider")
+assert_eq(config.get().model.name, "qwen3-coder-local:latest", ":MHModel sets model name")
+mh.model({ "auto" })
+assert_eq(config.get().model.provider, "auto", ":MHModel auto sets provider")
+assert_eq(config.get().model.name, nil, ":MHModel auto clears stale model name")
+assert_eq(config.get().model.endpoint, nil, ":MHModel auto clears stale endpoint")
+mh.model({ "provider=openrouter", "model=anthropic/claude-3.5-sonnet", "api_key_env=OPENROUTER_API_KEY" })
+assert_eq(config.get().model.provider, "openrouter", ":MHModel key=value sets provider")
+assert_eq(config.get().model.name, "anthropic/claude-3.5-sonnet", ":MHModel model= maps to name")
+assert_eq(config.get().model.api_key_env, "OPENROUTER_API_KEY", ":MHModel sets api key env")
+
+providers.complete = function() error("sync model should not run during :MH open") end
+local async_cb = nil
+providers.complete_async = function(_, _, cb) async_cb = cb end
+state.set_suggestions({})
+require("master-hand").setup({ proactivity = "passive", storage = { enabled = false }, model = { provider = "auto" } })
+require("master-hand").open()
+assert(state.data.loading, ":MH shows loading state while model runs")
+assert(#state.data.suggestions > 0, ":MH shows local suggestions while model runs")
+assert(async_cb, ":MH starts async model suggestions")
+async_cb("[]")
+assert(not state.data.loading, "loading stops after async model finishes")
+require("master-hand").close()
 
 providers.complete = function() return nil, "boom" end
 require("master-hand").setup({ proactivity = "passive", storage = { enabled = false }, model = { provider = "auto" } })

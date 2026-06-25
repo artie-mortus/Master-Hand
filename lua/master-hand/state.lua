@@ -16,6 +16,9 @@ M.data = {
   pending_actions = {},
   last_context = nil,
   last_command = nil,
+  loading = false,
+  loading_message = nil,
+  loading_frame = 1,
 }
 
 function M.add_edit(bufnr)

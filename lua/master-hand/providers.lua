@@ -2,15 +2,50 @@
 local config = require("master-hand.config")
 local M = {}
 
-local function post_json(url, body, headers, timeout_ms)
+local function curl_cmd(url, body, headers)
   local cmd = { "curl", "-sS", "-X", "POST", url, "-H", "Content-Type: application/json" }
   for _, header in ipairs(headers or {}) do vim.list_extend(cmd, { "-H", header }) end
   vim.list_extend(cmd, { "-d", vim.json.encode(body) })
-  local res = vim.system(cmd, { text = true, timeout = timeout_ms }):wait()
-  if res.code ~= 0 then return nil, res.stderr ~= "" and res.stderr or "provider request failed" end
+  return cmd
+end
+
+local function decode_response(res, timeout_ms)
+  if res.code ~= 0 then
+    if res.code == 124 or res.signal == 15 then
+      return nil, string.format("provider request timed out after %.1fs", (timeout_ms or 0) / 1000)
+    end
+    local detail = res.stderr ~= "" and res.stderr or res.stdout
+    return nil, detail ~= "" and detail or ("provider request failed (exit " .. tostring(res.code) .. ")")
+  end
   local ok, decoded = pcall(vim.json.decode, res.stdout or "")
   if not ok then return nil, "provider returned invalid JSON" end
   return decoded
+end
+
+local function post_json(url, body, headers, timeout_ms)
+  return decode_response(vim.system(curl_cmd(url, body, headers), { text = true, timeout = timeout_ms }):wait(), timeout_ms)
+end
+
+local function post_json_async(url, body, headers, timeout_ms, cb)
+  vim.system(curl_cmd(url, body, headers), { text = true, timeout = timeout_ms }, function(res)
+    local decoded, err = decode_response(res, timeout_ms)
+    vim.schedule(function() cb(decoded, err) end)
+  end)
+end
+
+local function openai_body(model, messages)
+  return {
+    model = model.name,
+    messages = messages,
+    temperature = model.temperature,
+    max_tokens = model.max_tokens,
+  }
+end
+
+local function openai_content(decoded)
+  local content = decoded.choices and decoded.choices[1] and decoded.choices[1].message and decoded.choices[1].message.content
+  if content then return content end
+  return nil, "provider response missing choices[1].message.content"
 end
 
 local function openai_compatible(model, messages)
@@ -18,15 +53,20 @@ local function openai_compatible(model, messages)
   local key = model.api_key_env and os.getenv(model.api_key_env) or nil
   local headers = {}
   if key and key ~= "" then table.insert(headers, "Authorization: Bearer " .. key) end
-  local decoded, err = post_json(model.endpoint, {
-    model = model.name,
-    messages = messages,
-    temperature = model.temperature,
-    max_tokens = model.max_tokens,
-  }, headers, model.timeout_ms)
+  local decoded, err = post_json(model.endpoint, openai_body(model, messages), headers, model.timeout_ms)
   if not decoded then return nil, err end
-  local content = decoded.choices and decoded.choices[1] and decoded.choices[1].message and decoded.choices[1].message.content
-  return content, content and nil or "provider response missing choices[1].message.content"
+  return openai_content(decoded)
+end
+
+local function openai_compatible_async(model, messages, cb)
+  if not model.endpoint or not model.name then cb(nil, "model.endpoint and model.name required"); return end
+  local key = model.api_key_env and os.getenv(model.api_key_env) or nil
+  local headers = {}
+  if key and key ~= "" then table.insert(headers, "Authorization: Bearer " .. key) end
+  post_json_async(model.endpoint, openai_body(model, messages), headers, model.timeout_ms, function(decoded, err)
+    if not decoded then cb(nil, err); return end
+    cb(openai_content(decoded))
+  end)
 end
 
 local function openrouter(model, messages)
@@ -37,36 +77,84 @@ local function openrouter(model, messages)
   return openai_compatible(model, messages)
 end
 
+local function openrouter_async(model, messages, cb)
+  model.endpoint = model.endpoint or "https://openrouter.ai/api/v1/chat/completions"
+  model.api_key_env = model.api_key_env or "OPENROUTER_API_KEY"
+  local key = os.getenv(model.api_key_env) or ""
+  if key == "" then cb(nil, "openrouter api key missing: set model.api_key_env"); return end
+  openai_compatible_async(model, messages, cb)
+end
+
+local function pick_ollama_model(stdout)
+  local preferred, fallback = {}, {}
+  for line in (stdout or ""):gmatch("[^\n]+") do
+    local name = line:match("^(%S+)")
+    if name and name ~= "NAME" then
+      if name:lower():match("coder") or name:lower():match("code") or name:lower():match("qwen") then
+        table.insert(preferred, name)
+      else
+        table.insert(fallback, name)
+      end
+    end
+  end
+  return preferred[1] or fallback[1]
+end
+
 local function local_ollama_model()
   local res = vim.system({ "ollama", "list" }, { text = true, timeout = 3000 }):wait()
   if res.code ~= 0 then return nil end
-  for line in (res.stdout or ""):gmatch("[^\n]+") do
-    local name = line:match("^(%S+)")
-    if name and name ~= "NAME" then return name end
-  end
+  return pick_ollama_model(res.stdout)
+end
+
+local function local_ollama_model_async(cb)
+  vim.system({ "ollama", "list" }, { text = true, timeout = 3000 }, function(res)
+    vim.schedule(function()
+      cb(res.code == 0 and pick_ollama_model(res.stdout) or nil)
+    end)
+  end)
+end
+
+local function ollama_body(model, messages)
+  return {
+    model = model.name,
+    messages = messages,
+    stream = false,
+    options = { temperature = model.temperature, num_predict = model.max_tokens },
+  }
+end
+
+local function ollama_content(decoded)
+  local content = decoded.message and decoded.message.content
+  if content then return content end
+  return nil, "ollama response missing message.content"
 end
 
 local function ollama(model, messages)
   local endpoint = model.endpoint or "http://localhost:11434/api/chat"
   model.name = model.name or local_ollama_model()
   if not model.name then return nil, "no local ollama model available" end
-  local decoded, err = post_json(endpoint, {
-    model = model.name,
-    messages = messages,
-    stream = false,
-    options = { temperature = model.temperature, num_predict = model.max_tokens },
-  }, {}, model.timeout_ms)
+  local decoded, err = post_json(endpoint, ollama_body(model, messages), {}, model.timeout_ms)
   if not decoded then return nil, err end
-  local content = decoded.message and decoded.message.content
-  return content, content and nil or "ollama response missing message.content"
+  return ollama_content(decoded)
 end
 
-local function anthropic(model, messages)
-  if not model.name then return nil, "model.name required" end
-  local endpoint = model.endpoint or "https://api.anthropic.com/v1/messages"
-  local key = model.api_key_env and os.getenv(model.api_key_env) or nil
-  if not key or key == "" then return nil, "anthropic api key missing: set model.api_key_env" end
+local function ollama_async(model, messages, cb)
+  local endpoint = model.endpoint or "http://localhost:11434/api/chat"
+  local function post()
+    if not model.name then cb(nil, "no local ollama model available"); return end
+    post_json_async(endpoint, ollama_body(model, messages), {}, model.timeout_ms, function(decoded, err)
+      if not decoded then cb(nil, err); return end
+      cb(ollama_content(decoded))
+    end)
+  end
+  if model.name then post(); return end
+  local_ollama_model_async(function(name)
+    model.name = name
+    post()
+  end)
+end
 
+local function anthropic_payload(model, messages)
   local system_parts, user_messages = {}, {}
   for _, msg in ipairs(messages or {}) do
     if msg.role == "system" then
@@ -75,20 +163,44 @@ local function anthropic(model, messages)
       table.insert(user_messages, { role = msg.role == "assistant" and "assistant" or "user", content = msg.content })
     end
   end
-
-  local decoded, err = post_json(endpoint, {
+  return {
     model = model.name,
     max_tokens = model.max_tokens,
     temperature = model.temperature,
     system = table.concat(system_parts, "\n\n"),
     messages = user_messages,
-  }, {
-    "x-api-key: " .. key,
-    "anthropic-version: 2023-06-01",
-  }, model.timeout_ms)
-  if not decoded then return nil, err end
+  }
+end
+
+local function anthropic_content(decoded)
   local content = decoded.content and decoded.content[1] and decoded.content[1].text
-  return content, content and nil or "anthropic response missing content[1].text"
+  if content then return content end
+  return nil, "anthropic response missing content[1].text"
+end
+
+local function anthropic_headers(key)
+  return { "x-api-key: " .. key, "anthropic-version: 2023-06-01" }
+end
+
+local function anthropic(model, messages)
+  if not model.name then return nil, "model.name required" end
+  local endpoint = model.endpoint or "https://api.anthropic.com/v1/messages"
+  local key = model.api_key_env and os.getenv(model.api_key_env) or nil
+  if not key or key == "" then return nil, "anthropic api key missing: set model.api_key_env" end
+  local decoded, err = post_json(endpoint, anthropic_payload(model, messages), anthropic_headers(key), model.timeout_ms)
+  if not decoded then return nil, err end
+  return anthropic_content(decoded)
+end
+
+local function anthropic_async(model, messages, cb)
+  if not model.name then cb(nil, "model.name required"); return end
+  local endpoint = model.endpoint or "https://api.anthropic.com/v1/messages"
+  local key = model.api_key_env and os.getenv(model.api_key_env) or nil
+  if not key or key == "" then cb(nil, "anthropic api key missing: set model.api_key_env"); return end
+  post_json_async(endpoint, anthropic_payload(model, messages), anthropic_headers(key), model.timeout_ms, function(decoded, err)
+    if not decoded then cb(nil, err); return end
+    cb(anthropic_content(decoded))
+  end)
 end
 
 function M.complete(messages, opts)
@@ -100,6 +212,17 @@ function M.complete(messages, opts)
   if model.provider == "ollama" then return ollama(model, messages) end
   if model.provider == "anthropic" then return anthropic(model, messages) end
   return nil, "provider not implemented: " .. tostring(model.provider)
+end
+
+function M.complete_async(messages, opts, cb)
+  local model = vim.tbl_deep_extend("force", config.get().model, opts or {})
+  if model.provider == "none" then cb(nil, "model provider disabled"); return end
+  if model.provider == "auto" then ollama_async(model, messages, cb); return end
+  if model.provider == "openai_compatible" then openai_compatible_async(model, messages, cb); return end
+  if model.provider == "openrouter" then openrouter_async(model, messages, cb); return end
+  if model.provider == "ollama" then ollama_async(model, messages, cb); return end
+  if model.provider == "anthropic" then anthropic_async(model, messages, cb); return end
+  cb(nil, "provider not implemented: " .. tostring(model.provider))
 end
 
 return M

@@ -3,16 +3,20 @@ local config = require("master-hand.config")
 local path = require("master-hand.path")
 local M = {}
 
+local function timeout_ms()
+  return math.min(config.get().commands.timeout_ms or 10000, 3000)
+end
+
 local function run(root, args)
   if not root then return "" end
   local cmd = vim.list_extend({ "git", "-C", root }, args)
-  local out = vim.system(cmd, { text = true, timeout = config.get().model.timeout_ms }):wait()
+  local out = vim.system(cmd, { text = true, timeout = timeout_ms() }):wait()
   if out.code ~= 0 then return "" end
   return out.stdout or ""
 end
 
 function M.root()
-  local out = vim.system({ "git", "rev-parse", "--show-toplevel" }, { text = true, timeout = config.get().model.timeout_ms }):wait()
+  local out = vim.system({ "git", "rev-parse", "--show-toplevel" }, { text = true, timeout = timeout_ms() }):wait()
   if out.code == 0 then return vim.trim(out.stdout) end
   return vim.loop.cwd()
 end

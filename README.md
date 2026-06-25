@@ -54,7 +54,25 @@ Model-backed suggestions can propose an edit or command, but nothing is applied 
 
 ## Model providers
 
-With `provider = "auto"`, Master Hand opportunistically uses the first locally available Ollama model. If no local model is reachable, local heuristic suggestions still work without showing provider errors. Use `provider = "none"` to disable model calls explicitly.
+With `provider = "auto"`, Master Hand opportunistically uses a locally available Ollama model, preferring coder/code/Qwen models when present. If no local model is reachable, local heuristic suggestions still work without showing provider errors. Use `provider = "none"` to disable model calls explicitly.
+
+Cold local models can take time to load, so the default model timeout is 60 seconds. Run `:MHModelStatus` to test the configured provider and see connection/timeout errors.
+
+Change model from inside Neovim:
+
+```vim
+:MHModel                         " show current model
+:MHModel qwen3-coder-local:latest " use Ollama model
+:MHModel ollama qwen3-coder-local:latest
+:MHModel openrouter anthropic/claude-3.5-sonnet
+:MHModel anthropic claude-sonnet-4-20250514
+:MHModel openai_compatible http://localhost:11434/v1/chat/completions qwen2.5-coder
+:MHModel provider=openrouter model=anthropic/claude-3.5-sonnet api_key_env=OPENROUTER_API_KEY
+:MHModel auto
+:MHModel none
+```
+
+`:MHModel` changes runtime config for the current Neovim session. Add the same model to `setup()` for a permanent default.
 
 ### OpenAI-compatible
 
@@ -109,20 +127,39 @@ require("master-hand").setup({
 
 | Command | Alias | Description |
 | --- | --- | --- |
-| `:MasterHand` | `:MH` | Open sidebar |
+| `:MasterHand` | `:MH` | Open sidebar without refreshing suggestions |
 | `:MasterHandClose` | `:MHClose` | Close sidebar |
 | `:MasterHandGoal <goal>` | `:MHGoal <goal>` | Set long-term steering goal |
 | `:MasterHandPlan` | `:MHPlan` | Generate plan suggestions |
-| `:MasterHandSuggest` | `:MHSuggest` | Refresh suggestions |
-| `:MasterHandStatus` | `:MHStatus` | Print context summary |
-| `:MasterHandContext` | `:MHContext` | Show context snapshot |
-| `:MasterHandIndex` | `:MHIndex` | Show local repo index |
+| `:MasterHandSuggest` | `:MHSuggest` | Refresh model-backed suggestions asynchronously |
+| `:MasterHandModelSuggest` | `:MHModelSuggest` | Alias for `:MHSuggest` |
+| `:MasterHandStatus` | `:MHStatus` | Print cached context summary |
+| `:MasterHandModel [args]` | `:MHModel [args]` | Show/change runtime model config |
+| `:MasterHandModelStatus` | `:MHModelStatus` | Test configured model connection |
+| `:MasterHandContext` | `:MHContext` | Show cached context snapshot |
+| `:MasterHandIndex` | `:MHIndex` | Show cached local repo index |
 | `:MasterHandDiff [request]` | `:MHDiff [request]` | Prepare model-proposed diff |
 | `:MasterHandApprove [id]` | `:MHApprove [id]` | Approve pending action |
 | `:MasterHandReject [id]` | `:MHReject [id]` | Reject pending action |
 | `:MasterHandRun <argv...>` | `:MHRun <argv...>` | Queue command for approval |
 | `:MasterHandPending` | `:MHPending` | Show pending actions |
 | `:MasterHandSearch <query>` | `:MHSearch <query>` | Search repo with ripgrep |
+
+`:MH` opens the sidebar immediately. If suggestions are empty, it starts model-backed suggestions in the background and shows a spinner instead of blocking the UI. Use `:MHSuggest` or `r` inside the sidebar to refresh again.
+
+## Sidebar config
+
+```lua
+require("master-hand").setup({
+  ui = {
+    width = 46, -- fixed columns
+    max_width_ratio = 0.45, -- clamp on narrow/fullscreen-resized terminals
+    side = "right",
+  },
+})
+```
+
+The sidebar uses `winfixwidth` and reapplies width on `VimResized`, so i3/fullscreen terminal resizes should not stretch it across the editor.
 
 ## Sidebar keys
 

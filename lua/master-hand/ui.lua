@@ -4,7 +4,7 @@ local config = require("master-hand.config")
 local context = require("master-hand.context")
 local actions = require("master-hand.actions")
 
-local M = { win = nil, buf = nil }
+local M = { win = nil, buf = nil, augroup = nil }
 
 local function one_line(value)
   local text = tostring(value or "")
@@ -18,6 +18,13 @@ local function lines()
     vim.list_extend(out, context.summary_lines(state.data.last_context))
   else
     table.insert(out, "No context yet; run :MHSuggest to refresh.")
+  end
+  local model = config.get().model or {}
+  table.insert(out, "model: " .. (model.provider or "?") .. (model.name and model.name ~= "" and (" / " .. model.name) or ""))
+  if state.data.loading then
+    local frames = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
+    table.insert(out, "")
+    table.insert(out, (frames[state.data.loading_frame] or frames[1]) .. " " .. (state.data.loading_message or "Loading..."))
   end
   table.insert(out, "")
   if state.data.short_term_goal or state.data.long_term_goal then
@@ -61,9 +68,39 @@ function M.render()
   vim.bo[M.buf].modifiable = false
 end
 
+function M.sidebar_width()
+  local opts = config.get().ui or {}
+  local width = tonumber(opts.width) or 46
+  local ratio = tonumber(opts.max_width_ratio) or 0.45
+  if ratio > 0 then
+    local max_width = math.max(20, math.floor((vim.o.columns or width) * ratio))
+    width = math.min(width, max_width)
+  end
+  return math.max(1, width)
+end
+
+function M.apply_width()
+  if not (M.win and vim.api.nvim_win_is_valid(M.win)) then return end
+  vim.wo[M.win].winfixwidth = true
+  local width = M.sidebar_width()
+  if vim.api.nvim_win_get_width(M.win) ~= width then pcall(vim.api.nvim_win_set_width, M.win, width) end
+end
+
+local function ensure_resize_autocmd()
+  if M.augroup then return end
+  M.augroup = vim.api.nvim_create_augroup("MasterHandSidebar", { clear = true })
+  vim.api.nvim_create_autocmd("VimResized", {
+    group = M.augroup,
+    callback = function()
+      if M.win and vim.api.nvim_win_is_valid(M.win) then vim.schedule(M.apply_width) end
+    end,
+  })
+end
+
 function M.open()
   M.render()
   if M.win and vim.api.nvim_win_is_valid(M.win) then
+    M.apply_width()
     vim.api.nvim_set_current_win(M.win)
     return
   end
@@ -71,8 +108,9 @@ function M.open()
   vim.cmd(opts.side == "left" and "topleft vertical new" or "botright vertical new")
   M.win = vim.api.nvim_get_current_win()
   vim.api.nvim_win_set_buf(M.win, M.buf)
-  vim.api.nvim_win_set_width(M.win, opts.width)
   vim.wo[M.win].wrap = true
+  M.apply_width()
+  ensure_resize_autocmd()
   local map = function(lhs, rhs)
     vim.keymap.set("n", lhs, rhs, { buffer = M.buf, silent = true })
   end

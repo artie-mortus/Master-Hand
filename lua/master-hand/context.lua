@@ -89,13 +89,15 @@ local function infer_goal(edits, changed, diagnostics)
 end
 
 -- Main context object. Keep deterministic/local; do not call providers from here.
-function M.snapshot()
+function M.snapshot(opts)
+  opts = opts or {}
   local root = state.data.root or git.root()
   state.data.root = root
   local changed = config.get().observation.git and git.changed_files(root) or {}
   local names = changed_file_names(changed)
   local edits = recent_edits(root)
   local diag = diagnostics()
+  local quick = opts.quick == true
   local goal, goal_source, short_goal, short_source, long_goal, long_source = infer_goal(edits, changed, diag)
   state.data.goal = goal
   state.data.goal_source = goal_source
@@ -105,7 +107,7 @@ function M.snapshot()
   state.data.long_term_goal_source = long_source
   local snap = {
     root = root,
-    branch = git.branch(root),
+    branch = quick and "" or git.branch(root),
     goal = goal,
     goal_source = goal_source,
     short_term_goal = short_goal,
@@ -115,14 +117,14 @@ function M.snapshot()
     open_buffers = open_buffers(root),
     recent_edits = edits,
     diagnostics = diag,
-    git_status = config.get().observation.git and git.status_filtered(root) or "",
+    git_status = config.get().observation.git and table.concat(vim.tbl_map(function(item) return string.format("%s %s", item.status, item.file) end, changed), "\n") or "",
     changed_files = names,
     changed = changed,
-    diff = config.get().observation.git and git.diff(root, nil, config.get().context.max_diff_bytes) or "",
-    repo_files = git.ls_files(root, config.get().context.max_files),
-    repo_index = config.get().context.include_index and index.build(root) or {},
-    related = config.get().context.include_related_files and search.related_to_goal(root, table.concat({ short_goal or "", long_goal or "" }, " "), config.get().context.max_search_results) or {},
-    symbols = config.get().context.include_symbols and search.symbols() or {},
+    diff = (not quick and config.get().observation.git) and git.diff(root, nil, config.get().context.max_diff_bytes) or "",
+    repo_files = quick and {} or git.ls_files(root, config.get().context.max_files),
+    repo_index = (not quick and config.get().context.include_index) and index.build(root) or {},
+    related = (not quick and config.get().context.include_related_files) and search.related_to_goal(root, table.concat({ short_goal or "", long_goal or "" }, " "), config.get().context.max_search_results) or {},
+    symbols = (not quick and config.get().context.include_symbols) and search.symbols() or {},
     feedback = state.data.feedback,
   }
   state.data.last_context = snap

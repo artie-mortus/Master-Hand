@@ -31,7 +31,7 @@ M.defaults = {
     api_key_env = nil,
     name = nil,
     context_limit = 32000,
-    timeout_ms = 10000,
+    timeout_ms = 60000,
     temperature = 0.2,
     max_tokens = 1200,
   },
@@ -62,6 +62,7 @@ M.defaults = {
   },
   ui = {
     width = 46,
+    max_width_ratio = 0.45,
     side = "right",
     show_diff_preview = true,
   },
@@ -78,6 +79,19 @@ end
 
 function M.get()
   return M.options or M.setup({})
+end
+
+function M.set_model(opts)
+  local options = M.get()
+  options.model = options.model or {}
+  for k, v in pairs(opts or {}) do
+    if v == vim.NIL then
+      options.model[k] = nil
+    else
+      options.model[k] = v
+    end
+  end
+  return options.model
 end
 
 return M
