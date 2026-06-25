@@ -4,17 +4,19 @@
   <img src=".github/social-preview.png" alt="Master Hand project artwork" width="640">
 </p>
 
-Master Hand is a Neovim assistant that infers your current coding goal, reads repo context, and suggests safe next steps. It never edits files or runs commands unless you approve the pending action.
+Master Hand is an experimental Neovim assistant that reads repo/editor context, infers your current coding goal, and suggests safe next steps. It never edits files or runs commands unless you approve an explicit pending action.
 
 > [!WARNING]
-> **This project is currently vibe-coded and lightly reviewed. Treat it as experimental until I have more time to harden and audit it.**
+> **This project is vibe-coded and lightly reviewed. Treat it as experimental until hardened.**
 
 ## Features
 
 - Repo-aware context: buffers, diagnostics, git status/diffs, ripgrep, tree-sitter, local index.
-- Goal-based suggestions: local heuristics plus OpenAI-compatible, OpenRouter, Ollama, or Anthropic models.
-- Sidebar: review suggestions, feedback, searches, context snapshots, pending approvals.
-- Safety-first: no edits or commands without approval; proposed diffs must pass `git apply --check`.
+- Model-backed suggestions: local heuristics plus OpenAI-compatible, OpenRouter, Ollama, or Anthropic providers.
+- Non-blocking sidebar: `:MH` opens immediately; model suggestions load asynchronously with a spinner.
+- Runtime model switching from inside Neovim via `:MHModel`.
+- Safety-first actions: edits/commands are queued for approval and never run automatically.
+- Tiling-WM-friendly sidebar: fixed width, resize clamp, `winfixwidth` support.
 
 ## Installation
 
@@ -33,32 +35,55 @@ Example `lazy.nvim` config:
 }
 ```
 
-## Goal steering
+## Quick start
 
-Master Hand keeps steering intent instead of one hard goal:
+```vim
+:MH                         " open sidebar; starts async suggestions if empty
+:MHSuggest                  " refresh model-backed suggestions
+:MHGoal Fix login redirect  " steer long-term goal
+:MHModel                    " show active model
+:MHModel qwen3-coder-local:latest
+:MHModelStatus              " test model connection
+```
 
-- Long-term goal captures user/project direction.
-- Short-term goal captures immediate repo-aware work from recent edited lines, changed files, diagnostics, and repo state.
-- The short-term goal is informed by the long-term goal, but local evidence can still change the next step.
-- The configured model refines both goals by reading recent edited lines and selected code excerpts like a human code reviewer.
-- `:MasterHandGoal <goal>` sets long-term steering when inferred direction is wrong.
+Inside sidebar:
 
-## Suggestions
+| Key | Action |
+| --- | --- |
+| `a` | Mark suggestion accepted/useful |
+| `d` | Dismiss suggestion |
+| `p` | Postpone suggestion |
+| `v` | View details |
+| `r` | Refresh suggestions |
+| `q` | Close |
+
+`a` records feedback only. It does **not** apply edits or run commands. Real work goes through pending actions plus `:MHApprove`.
+
+## How suggestions work
 
 Suggestions run in two stages:
 
-1. Local heuristics inspect short/long-term steering goals, diagnostics, git diff, related files, recent edits, and repo index.
-2. The configured model reviews those local suggestions plus read-only code context and returns additional suggestions.
+1. Local heuristics inspect steering goals, diagnostics, git diff, related files, recent edits, and repo index.
+2. Configured model reviews those local suggestions plus read-only code context and returns extra suggestions.
 
-Model-backed suggestions can propose an edit or command, but nothing is applied or executed until you approve a pending action.
+`:MH` shows the sidebar immediately. If suggestions are empty, Master Hand starts model-backed suggestion generation in the background and shows a loading spinner instead of blocking Neovim.
+
+## Goal steering
+
+Master Hand keeps steering intent instead of one hard task:
+
+- Long-term goal captures user/project direction.
+- Short-term goal captures immediate repo-aware work from recent edits, changed files, diagnostics, and repo state.
+- The model can refine both goals from read-only context.
+- `:MHGoal <goal>` sets long-term steering when inferred direction is wrong.
 
 ## Model providers
 
-With `provider = "auto"`, Master Hand opportunistically uses a locally available Ollama model, preferring coder/code/Qwen models when present. If no local model is reachable, local heuristic suggestions still work without showing provider errors. Use `provider = "none"` to disable model calls explicitly.
+With `provider = "auto"`, Master Hand uses a local Ollama model when available, preferring coder/code/Qwen models. If no model is reachable, local heuristic suggestions still work. Use `provider = "none"` to disable model calls.
 
-Cold local models can take time to load, so the default model timeout is 60 seconds. Run `:MHModelStatus` to test the configured provider and see connection/timeout errors.
+Cold local models can take time to load, so default model timeout is 60 seconds. Run `:MHModelStatus` to test provider connectivity.
 
-Change model from inside Neovim:
+### Change model in Neovim
 
 ```vim
 :MHModel                         " show current model
@@ -66,28 +91,32 @@ Change model from inside Neovim:
 :MHModel ollama qwen3-coder-local:latest
 :MHModel openrouter anthropic/claude-3.5-sonnet
 :MHModel anthropic claude-sonnet-4-20250514
-:MHModel openai_compatible http://localhost:11434/v1/chat/completions qwen2.5-coder
+:MHModel provider=openai_compatible endpoint=https://api.openai.com/v1/chat/completions model=gpt-5.5 api_key_env=OPENAI_API_KEY
 :MHModel provider=openrouter model=anthropic/claude-3.5-sonnet api_key_env=OPENROUTER_API_KEY
 :MHModel auto
 :MHModel none
 ```
 
-`:MHModel` changes runtime config for the current Neovim session. Add the same model to `setup()` for a permanent default.
+`:MHModel` changes runtime config for the current Neovim session. Add same model to `setup()` for permanent default.
 
-### OpenAI-compatible
+### Config examples
+
+OpenAI API:
 
 ```lua
 require("master-hand").setup({
   model = {
-    provider = "openai_compatible",
-    endpoint = "http://localhost:11434/v1/chat/completions",
-    name = "qwen2.5-coder",
-    api_key_env = nil,
+    provider = "openai_compatible", -- OpenAI chat-completions wire format
+    endpoint = "https://api.openai.com/v1/chat/completions",
+    name = "gpt-5.5",
+    api_key_env = "OPENAI_API_KEY",
   },
 })
 ```
 
-### Ollama
+`openai_compatible` means API shape, not model vendor. For Qwen via Ollama, use the native Ollama provider below.
+
+Ollama:
 
 ```lua
 require("master-hand").setup({
@@ -99,19 +128,19 @@ require("master-hand").setup({
 })
 ```
 
-### OpenRouter
+OpenRouter:
 
 ```lua
 require("master-hand").setup({
   model = {
     provider = "openrouter",
     name = "anthropic/claude-3.5-sonnet",
-    api_key_env = "OPENROUTER_API_KEY", -- optional default
+    api_key_env = "OPENROUTER_API_KEY",
   },
 })
 ```
 
-### Anthropic
+Anthropic:
 
 ```lua
 require("master-hand").setup({
@@ -127,10 +156,10 @@ require("master-hand").setup({
 
 | Command | Alias | Description |
 | --- | --- | --- |
-| `:MasterHand` | `:MH` | Open sidebar without refreshing suggestions |
+| `:MasterHand` | `:MH` | Open sidebar; async-load suggestions if empty |
 | `:MasterHandClose` | `:MHClose` | Close sidebar |
 | `:MasterHandGoal <goal>` | `:MHGoal <goal>` | Set long-term steering goal |
-| `:MasterHandPlan` | `:MHPlan` | Generate plan suggestions |
+| `:MasterHandPlan` | `:MHPlan` | Generate model-backed plan suggestions |
 | `:MasterHandSuggest` | `:MHSuggest` | Refresh model-backed suggestions asynchronously |
 | `:MasterHandModelSuggest` | `:MHModelSuggest` | Alias for `:MHSuggest` |
 | `:MasterHandStatus` | `:MHStatus` | Print cached context summary |
@@ -145,15 +174,13 @@ require("master-hand").setup({
 | `:MasterHandPending` | `:MHPending` | Show pending actions |
 | `:MasterHandSearch <query>` | `:MHSearch <query>` | Search repo with ripgrep |
 
-`:MH` opens the sidebar immediately. If suggestions are empty, it starts model-backed suggestions in the background and shows a spinner instead of blocking the UI. Use `:MHSuggest` or `r` inside the sidebar to refresh again.
-
 ## Sidebar config
 
 ```lua
 require("master-hand").setup({
   ui = {
-    width = 46, -- fixed columns
-    max_width_ratio = 0.45, -- clamp on narrow/fullscreen-resized terminals
+    width = 46,
+    max_width_ratio = 0.45,
     side = "right",
   },
 })
@@ -161,28 +188,17 @@ require("master-hand").setup({
 
 The sidebar uses `winfixwidth` and reapplies width on `VimResized`, so i3/fullscreen terminal resizes should not stretch it across the editor.
 
-## Sidebar keys
+## Safety model
 
-| Key | Action |
-| --- | --- |
-| `a` | Accept suggestion |
-| `d` | Dismiss suggestion |
-| `p` | Postpone suggestion |
-| `v` | View details |
-| `r` | Refresh |
-| `q` | Close |
-
-## Safety
-
-- No automatic edits or command execution
-- Diffs must pass `git apply --check` before approval and before apply
-- Commands use argv arrays, not shell strings
-- Shell metacharacters and dangerous commands blocked
-- Pending diffs kept in memory, not written to disk
+- No automatic edits or command execution.
+- Accepting a suggestion records feedback only.
+- Diffs must pass `git apply --check` before approval and before apply.
+- Commands use argv arrays, not shell strings.
+- Shell metacharacters and dangerous commands are blocked.
+- Pending diffs live in memory, not on disk.
 
 ## Testing
 
 ```sh
 nvim --headless -u NONE -l tests/run.lua
 ```
-
