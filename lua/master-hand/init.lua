@@ -144,8 +144,52 @@ local model_providers = {
   ollama = true,
   openrouter = true,
   anthropic = true,
+  openai = true,
   openai_compatible = true,
+  ollama_cloud = true,
+  ["ollama-cloud"] = true,
 }
+
+local function normalize_provider(provider)
+  if provider == "openai" then return "openai_compatible" end
+  if provider == "ollama_cloud" or provider == "ollama-cloud" then return "ollama" end
+  return provider
+end
+
+local function is_ollama_cloud(provider)
+  return provider == "ollama_cloud" or provider == "ollama-cloud"
+end
+
+local function infer_provider(model_name)
+  model_name = (model_name or ""):lower()
+  if model_name:match("^gpt%-?%d") or model_name:match("^o%d") then return "openai_compatible" end
+  return "ollama"
+end
+
+local function apply_model_defaults(update)
+  if not update.provider and update.name and update.name ~= vim.NIL then update.provider = infer_provider(update.name) end
+  if not update.provider then return update end
+  local cloud = is_ollama_cloud(update.provider)
+  update.provider = normalize_provider(update.provider)
+  if cloud then
+    update.endpoint = update.endpoint or "https://ollama.com/api/chat"
+    update.api_key_env = update.api_key_env or "OLLAMA_API_KEY"
+  elseif update.provider == "openai_compatible" then
+    update.endpoint = update.endpoint or "https://api.openai.com/v1/chat/completions"
+    update.api_key_env = update.api_key_env or "OPENAI_API_KEY"
+  elseif update.provider == "openrouter" then
+    update.endpoint = vim.NIL
+    update.api_key_env = update.api_key_env or "OPENROUTER_API_KEY"
+  elseif update.provider == "anthropic" then
+    update.endpoint = vim.NIL
+    update.api_key_env = update.api_key_env or "ANTHROPIC_API_KEY"
+  else
+    update.endpoint = vim.NIL
+    update.api_key_env = vim.NIL
+  end
+  if update.provider == "auto" or update.provider == "none" then update.name = vim.NIL end
+  return update
+end
 
 local function model_summary()
   local model = config.get().model or {}
@@ -170,24 +214,20 @@ local function parse_model_args(args)
         update[k] = v ~= "" and v or vim.NIL
       end
     end
-    return update
+    return apply_model_defaults(update)
   end
 
   local first = args[1]
-  local provider = model_providers[first] and first or "ollama"
-  update.provider = provider
-  if provider ~= "openai_compatible" then
-    update.endpoint = vim.NIL
-    update.api_key_env = vim.NIL
+  local explicit_provider = model_providers[first]
+  update.provider = explicit_provider and first or infer_provider(first)
+  update.name = explicit_provider and (args[2] or vim.NIL) or first
+  if update.provider == "openai_compatible" and args[2] and args[2]:match("^https?://") then
+    update.endpoint = args[2]
+    update.name = args[3] or vim.NIL
+  elseif explicit_provider and args[3] and args[3]:match("^https?://") then
+    update.endpoint = args[3]
   end
-  local next_arg = model_providers[first] and 2 or 1
-  if provider == "openai_compatible" and args[next_arg] and args[next_arg]:match("^https?://") then
-    update.endpoint = args[next_arg]
-    update.name = args[next_arg + 1] or vim.NIL
-  else
-    update.name = args[next_arg] or vim.NIL
-  end
-  return update
+  return apply_model_defaults(update)
 end
 
 function M.model(args)

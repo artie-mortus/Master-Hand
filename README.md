@@ -86,15 +86,23 @@ Cold local models can take time to load, so default model timeout is 60 seconds.
 ### Change model in Neovim
 
 ```vim
-:MHModel                         " show current model
-:MHModel qwen3-coder-local:latest " use Ollama model
+:MHModel                  " show current model
+:MHModel gpt-5.5          " OpenAI (sets endpoint + OPENAI_API_KEY)
+:MHModel openai gpt-5.5
+:MHModel qwen3-coder-local:latest
 :MHModel ollama qwen3-coder-local:latest
+:MHModel ollama-cloud gpt-oss:120b " Ollama Cloud (sets OLLAMA_API_KEY)
 :MHModel openrouter anthropic/claude-3.5-sonnet
 :MHModel anthropic claude-sonnet-4-20250514
-:MHModel provider=openai_compatible endpoint=https://api.openai.com/v1/chat/completions model=gpt-5.5 api_key_env=OPENAI_API_KEY
-:MHModel provider=openrouter model=anthropic/claude-3.5-sonnet api_key_env=OPENROUTER_API_KEY
 :MHModel auto
 :MHModel none
+```
+
+Model name alone is inferred: `gpt-4*`/`gpt-5*`/`o*` uses OpenAI; everything else uses local Ollama. For Ollama Cloud, use `ollama-cloud <model>` so Master Hand sets `https://ollama.com/api/chat` and `OLLAMA_API_KEY`. Advanced `key=value` form still works when needed:
+
+```vim
+:MHModel provider=openai model=gpt-5.5 endpoint=https://api.openai.com/v1/chat/completions api_key_env=OPENAI_API_KEY
+:MHModel provider=ollama-cloud model=gpt-oss:120b
 ```
 
 `:MHModel` changes runtime config for the current Neovim session. Add same model to `setup()` for permanent default.
@@ -114,16 +122,29 @@ require("master-hand").setup({
 })
 ```
 
-`openai_compatible` means API shape, not model vendor. For Qwen via Ollama, use the native Ollama provider below.
+`openai_compatible` means API shape, not model vendor. For Qwen or `gpt-oss` via Ollama, use the native Ollama provider below.
 
-Ollama:
+Local Ollama:
 
 ```lua
 require("master-hand").setup({
   model = {
     provider = "ollama",
     endpoint = "http://localhost:11434/api/chat", -- optional default
-    name = "qwen2.5-coder",
+    name = "qwen3-coder-local:latest",
+  },
+})
+```
+
+Ollama Cloud:
+
+```lua
+require("master-hand").setup({
+  model = {
+    provider = "ollama",
+    endpoint = "https://ollama.com/api/chat",
+    name = "gpt-oss:120b",
+    api_key_env = "OLLAMA_API_KEY",
   },
 })
 ```

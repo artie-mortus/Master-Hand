@@ -129,11 +129,16 @@ local function ollama_content(decoded)
   return nil, "ollama response missing message.content"
 end
 
+local function ollama_headers(model)
+  local key = model.api_key_env and os.getenv(model.api_key_env) or nil
+  return key and key ~= "" and { "Authorization: Bearer " .. key } or {}
+end
+
 local function ollama(model, messages)
   local endpoint = model.endpoint or "http://localhost:11434/api/chat"
   model.name = model.name or local_ollama_model()
   if not model.name then return nil, "no local ollama model available" end
-  local decoded, err = post_json(endpoint, ollama_body(model, messages), {}, model.timeout_ms)
+  local decoded, err = post_json(endpoint, ollama_body(model, messages), ollama_headers(model), model.timeout_ms)
   if not decoded then return nil, err end
   return ollama_content(decoded)
 end
@@ -142,7 +147,7 @@ local function ollama_async(model, messages, cb)
   local endpoint = model.endpoint or "http://localhost:11434/api/chat"
   local function post()
     if not model.name then cb(nil, "no local ollama model available"); return end
-    post_json_async(endpoint, ollama_body(model, messages), {}, model.timeout_ms, function(decoded, err)
+    post_json_async(endpoint, ollama_body(model, messages), ollama_headers(model), model.timeout_ms, function(decoded, err)
       if not decoded then cb(nil, err); return end
       cb(ollama_content(decoded))
     end)

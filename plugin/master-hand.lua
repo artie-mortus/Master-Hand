@@ -7,7 +7,7 @@ vim.g.loaded_master_hand = 1
 local mh = require("master-hand")
 
 local function model_complete(arglead)
-  local items = { "auto", "none", "ollama", "openrouter", "anthropic", "openai_compatible", "provider=", "name=", "model=", "endpoint=", "api_key_env=" }
+  local items = { "auto", "none", "ollama", "ollama-cloud", "openai", "openrouter", "anthropic", "openai_compatible", "provider=", "model=", "endpoint=", "api_key_env=" }
   local out = {}
   for _, item in ipairs(items) do
     if item:find(arglead, 1, true) == 1 then table.insert(out, item) end
