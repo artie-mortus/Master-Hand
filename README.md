@@ -13,10 +13,8 @@ Master Hand is an experimental Neovim assistant that reads repo/editor context, 
 
 - **Repo-aware suggestions** — uses open buffers, diagnostics, git changes, ripgrep results, tree-sitter symbols, and a lightweight repo index.
 - **Model-backed review** — combines local heuristics with Ollama, Ollama Cloud, OpenAI-compatible APIs, OpenRouter, or Anthropic.
-- **Non-blocking sidebar** — `:MH` opens immediately while model suggestions load in the background with a spinner.
 - **In-editor model switching** — change providers/models at runtime with `:MHModel`.
 - **Approval-first safety** — suggestions never edit files or run commands unless you approve a pending action.
-- **Tiling-WM friendly UI** — fixed-width sidebar with resize clamping and `winfixwidth`.
 
 ## Installation
 
