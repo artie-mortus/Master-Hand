@@ -50,12 +50,20 @@ function M.validate(argv)
   return argv
 end
 
+local function failure_message(res)
+  local detail = vim.trim((res.stderr or "") ~= "" and res.stderr or (res.stdout or ""))
+  local status = res.signal and res.signal ~= 0 and ("signal " .. tostring(res.signal)) or ("exit " .. tostring(res.code))
+  return detail ~= "" and (status .. ": " .. detail) or status
+end
+
 function M.run(root, argv)
   local ok, err = M.validate(argv)
   if not ok then return nil, err end
   local timeout = config.get().commands.timeout_ms or config.get().model.timeout_ms
   local res = vim.system(ok, { cwd = root, text = true, timeout = timeout }):wait()
-  return { code = res.code, stdout = res.stdout or "", stderr = res.stderr or "", argv = ok }
+  local out = { code = res.code, signal = res.signal, stdout = res.stdout or "", stderr = res.stderr or "", argv = ok }
+  if res.code ~= 0 then return nil, failure_message(out) end
+  return out
 end
 
 return M

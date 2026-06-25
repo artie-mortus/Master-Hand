@@ -90,6 +90,11 @@ assert(not ok and err:match("argv/list"), "shell strings rejected")
 
 local original_system = vim.system
 vim.system = function()
+  return { wait = function() return { code = 1, signal = 0, stdout = "", stderr = "boom" } end }
+end
+local ran, rerr = runner.run(vim.fn.getcwd(), { "git", "status" })
+assert(not ran and rerr:match("exit 1: boom"), "failed approved commands return an error")
+vim.system = function()
   return { wait = function() return { code = 124, signal = 15, stdout = "", stderr = "" } end }
 end
 local content, perr = providers.complete({}, { provider = "openai_compatible", endpoint = "http://example.invalid", name = "x", timeout_ms = 1234 })
