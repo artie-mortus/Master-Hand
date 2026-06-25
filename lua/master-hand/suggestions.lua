@@ -60,6 +60,7 @@ local function code_context(snap)
 end
 
 local function infer_model_goal(snap)
+  if (config.get().model or {}).provider == "none" then return snap end
   if snap.long_term_goal_source == "user" and snap.short_term_goal_source == "user" then return snap end
   local enriched = vim.deepcopy(snap)
   enriched.code = code_context(enriched)
@@ -91,12 +92,18 @@ local function infer_model_goal(snap)
   return snap
 end
 
--- Optional model suggestions. Failures become low-confidence advice instead of errors.
+-- Optional model suggestions. Auto is opportunistic; explicit providers surface failures.
 local function provider_items(snap, mode, local_suggestions)
+  local model = config.get().model or {}
+  if model.provider == "none" then return {} end
+
   snap = vim.deepcopy(snap)
   snap.code = code_context(snap)
   local content, err = providers.complete(prompts.suggestions(snap, mode, local_suggestions))
-  if not content then return { item("provider-error", "Model provider failed", err, {}, 0.3, "Check model config or continue with heuristic suggestions.", "advice") } end
+  if not content then
+    if model.provider == "auto" then return {} end
+    return { item("provider-error", "Model provider failed", err, {}, 0.3, "Check model config or continue with heuristic suggestions.", "advice") }
+  end
   local ok, decoded = pcall(vim.json.decode, content)
   if not ok then return { item("provider-parse-error", "Model suggestions malformed", "Provider did not return JSON array.", {}, 0.3, "Retry or adjust provider prompt/model.", "advice") } end
   return schema.list(decoded)

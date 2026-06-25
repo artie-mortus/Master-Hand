@@ -54,7 +54,7 @@ Model-backed suggestions can propose an edit or command, but nothing is applied 
 
 ## Model providers
 
-With `provider = "auto"`, Master Hand uses the first locally available Ollama model.
+With `provider = "auto"`, Master Hand opportunistically uses the first locally available Ollama model. If no local model is reachable, local heuristic suggestions still work without showing provider errors. Use `provider = "none"` to disable model calls explicitly.
 
 ### OpenAI-compatible
 

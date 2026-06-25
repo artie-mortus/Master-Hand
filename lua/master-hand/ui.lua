@@ -13,8 +13,13 @@ end
 
 local function lines()
   -- Render from cached context; avoid blocking git/rg/index/model work during UI close/quit/render.
-  local summary = state.data.last_context and context.summary(state.data.last_context) or "No context yet; run :MHSuggest to refresh."
-  local out = { "Master Hand", string.rep("─", 32), summary, "" }
+  local out = { "Master Hand", string.rep("─", 32) }
+  if state.data.last_context then
+    vim.list_extend(out, context.summary_lines(state.data.last_context))
+  else
+    table.insert(out, "No context yet; run :MHSuggest to refresh.")
+  end
+  table.insert(out, "")
   if state.data.short_term_goal or state.data.long_term_goal then
     table.insert(out, "Steering")
     table.insert(out, "  short: " .. (state.data.short_term_goal or state.data.goal or "none") .. " (" .. (state.data.short_term_goal_source or state.data.goal_source or "inferred") .. ")")

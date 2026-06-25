@@ -58,6 +58,13 @@ local content, perr = providers.complete({}, { provider = "anthropic", name = "c
 assert(not content and perr:match("api key missing"), "anthropic requires api key")
 content, perr = providers.complete({}, { provider = "openrouter", name = "anthropic/claude-3.5-sonnet", api_key_env = "MASTER_HAND_TEST_MISSING_KEY" })
 assert(not content and perr:match("openrouter api key missing"), "openrouter requires api key")
+content, perr = providers.complete({}, { provider = "none" })
+assert(not content and perr:match("disabled"), "provider none disables model calls")
+
+providers.complete = function() return nil, "boom" end
+require("master-hand").setup({ proactivity = "passive", storage = { enabled = false }, model = { provider = "auto" } })
+require("master-hand.suggestions").generate()
+for _, sug in ipairs(state.data.suggestions) do assert(sug.id ~= "provider-error", "auto provider failures stay hidden") end
 
 providers.complete = function(messages)
   if messages[1].content:match("Infer steering intent") then
