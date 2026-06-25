@@ -26,7 +26,6 @@ end
 
 -- Validate before enqueue/run. Only argv-style commands are considered safe.
 function M.validate(argv)
-  if type(argv) == "string" then argv = vim.split(argv, "%s+", { trimempty = true }) end
   if type(argv) ~= "table" or not argv[1] then return nil, "command must be argv/list" end
   if blocked[argv[1]] then return nil, "blocked command: " .. argv[1] end
   for _, rule in ipairs(config.get().commands.blocklist or {}) do

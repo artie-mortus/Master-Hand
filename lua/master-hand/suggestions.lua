@@ -59,13 +59,7 @@ local function code_context(snap)
   return out
 end
 
-local function infer_model_goal(snap, opts)
-  if opts and opts.skip_model then return snap end
-  if (config.get().model or {}).provider == "none" then return snap end
-  if snap.long_term_goal_source == "user" and snap.short_term_goal_source == "user" then return snap end
-  local enriched = vim.deepcopy(snap)
-  enriched.code = code_context(enriched)
-  local content = providers.complete(prompts.goal(enriched))
+local function apply_model_goal(snap, content)
   if not content then return snap end
   local ok, decoded = pcall(vim.json.decode, content)
   if not ok or type(decoded) ~= "table" then return snap end
@@ -91,6 +85,28 @@ local function infer_model_goal(snap, opts)
   state.data.long_term_goal = snap.long_term_goal
   state.data.long_term_goal_source = snap.long_term_goal_source
   return snap
+end
+
+local function should_infer_model_goal(snap, opts)
+  if opts and opts.skip_model then return false end
+  if (config.get().model or {}).provider == "none" then return false end
+  return not (snap.long_term_goal_source == "user" and snap.short_term_goal_source == "user")
+end
+
+local function infer_model_goal(snap, opts)
+  if not should_infer_model_goal(snap, opts) then return snap end
+  local enriched = vim.deepcopy(snap)
+  enriched.code = code_context(enriched)
+  return apply_model_goal(snap, providers.complete(prompts.goal(enriched)))
+end
+
+local function infer_model_goal_async(snap, opts, cb)
+  if not should_infer_model_goal(snap, opts) then cb(snap); return end
+  local enriched = vim.deepcopy(snap)
+  enriched.code = code_context(enriched)
+  providers.complete_async(prompts.goal(enriched), nil, function(content, err)
+    cb(apply_model_goal(snap, content), err, content ~= nil)
+  end)
 end
 
 -- Optional model suggestions. Auto is opportunistic; explicit providers surface failures.
@@ -132,33 +148,39 @@ function M.generate_async(opts, cb)
   opts = opts or {}
   cb = cb or function() end
   local snap = context.snapshot({ quick = true })
-  local local_suggestions = heuristic(snap)
-  set_filtered(local_suggestions)
+  local initial_suggestions = heuristic(snap)
+  set_filtered(initial_suggestions)
 
   local model = config.get().model or {}
-  if model.provider == "none" then cb(local_suggestions); return local_suggestions end
+  if model.provider == "none" then cb(initial_suggestions); return initial_suggestions end
 
-  local request = vim.deepcopy(snap)
-  request.code = code_context(request)
-  providers.complete_async(prompts.suggestions(request, opts.mode or "suggest", local_suggestions), nil, function(content, err)
-    local out = vim.deepcopy(local_suggestions)
-    if not content then
-      if model.provider ~= "auto" then
-        table.insert(out, item("provider-error", "Model provider failed", err, {}, 0.3, "Check model config or continue with heuristic suggestions.", "advice"))
+  infer_model_goal_async(snap, opts, function(refined_snap, goal_err, goal_content)
+    local local_suggestions = heuristic(refined_snap)
+    set_filtered(local_suggestions)
+    if model.provider == "auto" and goal_err and not goal_content then cb(local_suggestions, goal_err); return end
+
+    local request = vim.deepcopy(refined_snap)
+    request.code = code_context(request)
+    providers.complete_async(prompts.suggestions(request, opts.mode or "suggest", local_suggestions), nil, function(content, err)
+      local out = vim.deepcopy(local_suggestions)
+      if not content then
+        if model.provider ~= "auto" then
+          table.insert(out, item("provider-error", "Model provider failed", err, {}, 0.3, "Check model config or continue with heuristic suggestions.", "advice"))
+        end
+        cb(set_filtered(out), err)
+        return
       end
-      cb(set_filtered(out), err)
-      return
-    end
-    local ok, decoded = pcall(vim.json.decode, content)
-    if ok then
-      vim.list_extend(out, schema.list(decoded))
-      cb(set_filtered(out))
-    else
-      table.insert(out, item("provider-parse-error", "Model suggestions malformed", "Provider did not return JSON array.", {}, 0.3, "Retry or adjust provider prompt/model.", "advice"))
-      cb(set_filtered(out), "Provider did not return JSON array")
-    end
+      local ok, decoded = pcall(vim.json.decode, content)
+      if ok then
+        vim.list_extend(out, schema.list(decoded))
+        cb(set_filtered(out))
+      else
+        table.insert(out, item("provider-parse-error", "Model suggestions malformed", "Provider did not return JSON array.", {}, 0.3, "Retry or adjust provider prompt/model.", "advice"))
+        cb(set_filtered(out), "Provider did not return JSON array")
+      end
+    end)
   end)
-  return local_suggestions
+  return initial_suggestions
 end
 
 return M

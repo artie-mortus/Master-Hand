@@ -66,6 +66,8 @@ ok, err = runner.validate({ "git", "status" })
 assert(ok and ok[1] == "git", "git status allowed")
 ok, err = runner.validate({ "npm", "run", "format" })
 assert(ok and ok[1] == "npm", "safe command with blocklist substring allowed")
+ok, err = runner.validate("git status")
+assert(not ok and err:match("argv/list"), "shell strings rejected")
 
 local original_system = vim.system
 vim.system = function()
@@ -122,17 +124,34 @@ assert_eq(config.get().model.provider, "openrouter", ":MHModel key=value sets pr
 assert_eq(config.get().model.name, "anthropic/claude-3.5-sonnet", ":MHModel model= maps to name")
 assert_eq(config.get().model.api_key_env, "OPENROUTER_API_KEY", ":MHModel sets api key env")
 
+state.data.pending_actions = {}
+local diff_mod = require("master-hand.diff")
+local original_apply = diff_mod.apply
+local pending = actions.create({ type = "proposed_edit", title = "Broken diff", root = vim.fn.getcwd(), diff = "bad" })
+diff_mod.apply = function() return false, "stale patch" end
+mh.approve(pending.id)
+assert(actions.get(pending.id), "failed apply keeps action pending")
+diff_mod.apply = function() return true end
+mh.approve(pending.id)
+assert_eq(actions.get(pending.id), nil, "successful apply approves action")
+diff_mod.apply = original_apply
+state.data.pending_actions = {}
+
 providers.complete = function() error("sync model should not run during :MH open") end
-local async_cb = nil
-providers.complete_async = function(_, _, cb) async_cb = cb end
+local async_calls = {}
+providers.complete_async = function(messages, _, cb) table.insert(async_calls, { messages = messages, cb = cb }) end
 state.set_suggestions({})
 require("master-hand").setup({ proactivity = "passive", storage = { enabled = false }, model = { provider = "auto" } })
 require("master-hand").open()
 assert(state.data.loading, ":MH shows loading state while model runs")
 assert(#state.data.suggestions > 0, ":MH shows local suggestions while model runs")
-assert(async_cb, ":MH starts async model suggestions")
-async_cb("[]")
+assert(#async_calls == 1 and async_calls[1].messages[1].content:match("Infer steering intent"), ":MH starts async goal inference")
+async_calls[1].cb(vim.json.encode({ long_term_goal = "Async long goal", short_term_goal = "Async short goal", confidence = 0.9 }))
+assert(state.data.loading, "loading continues while async suggestions run")
+assert(#async_calls == 2, ":MH starts async model suggestions after goal inference")
+async_calls[2].cb("[]")
 assert(not state.data.loading, "loading stops after async model finishes")
+assert_eq(state.data.short_term_goal, "Async short goal", "async path refines short-term goal")
 require("master-hand").close()
 
 providers.complete = function() return nil, "boom" end

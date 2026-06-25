@@ -14,6 +14,7 @@ local providers = require("master-hand.providers")
 local M = {}
 local timer = nil
 local loading_timer = nil
+local loading_id = 0
 
 -- Persist only long-lived user intent/feedback, not volatile context or pending actions.
 local function save_state() storage.save(state.persistable()) end
@@ -30,7 +31,9 @@ local function stop_timer()
   end
 end
 
-local function stop_loading()
+local function stop_loading(id)
+  if id and id ~= loading_id then return false end
+  if not id then loading_id = loading_id + 1 end
   if loading_timer then
     loading_timer:stop()
     loading_timer:close()
@@ -39,10 +42,13 @@ local function stop_loading()
   state.data.loading = false
   state.data.loading_message = nil
   state.data.loading_frame = 1
+  return true
 end
 
 local function start_loading(message)
   stop_loading()
+  loading_id = loading_id + 1
+  local id = loading_id
   state.data.loading = true
   state.data.loading_message = message or "Loading model suggestions..."
   state.data.loading_frame = 1
@@ -51,13 +57,13 @@ local function start_loading(message)
     state.data.loading_frame = (state.data.loading_frame % 10) + 1
     if ui.win and vim.api.nvim_win_is_valid(ui.win) then ui.render() end
   end))
+  return id
 end
 
 local function run_suggest(mode)
-  start_loading(mode == "plan" and "Loading model plan..." or "Loading model suggestions...")
+  local id = start_loading(mode == "plan" and "Loading model plan..." or "Loading model suggestions...")
   suggestions.generate_async({ mode = mode or "suggest" }, function()
-    stop_loading()
-    if ui.win and vim.api.nvim_win_is_valid(ui.win) then ui.render() end
+    if stop_loading(id) and ui.win and vim.api.nvim_win_is_valid(ui.win) then ui.render() end
   end)
   if ui.win and vim.api.nvim_win_is_valid(ui.win) then ui.render() end
 end
@@ -288,16 +294,23 @@ function M.approve(id)
     vim.notify("No pending action", vim.log.levels.WARN)
     return
   end
-  actions.approve(action.id)
   if action.type == "proposed_edit" then
     local ok, err = diff.apply(action.root, action.diff)
-    vim.notify(ok and ("Applied " .. action.id) or ("Apply failed: " .. tostring(err)), ok and vim.log.levels.INFO or vim.log.levels.ERROR)
+    if not ok then
+      vim.notify("Apply failed: " .. tostring(err), vim.log.levels.ERROR)
+      ui.render()
+      return
+    end
+    actions.approve(action.id)
+    vim.notify("Applied " .. action.id, vim.log.levels.INFO)
   elseif action.type == "command" then
     local res, err = runner.run(state.data.root, action.argv)
     if not res then
       vim.notify("Command failed: " .. tostring(err), vim.log.levels.ERROR)
+      ui.render()
       return
     end
+    actions.approve(action.id)
     state.data.last_command = res
     ui.show_text("Master Hand Command Output", table.concat({ "$ " .. table.concat(res.argv, " "), "", res.stdout, res.stderr }, "\n"))
   end
