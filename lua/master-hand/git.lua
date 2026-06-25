@@ -23,6 +23,7 @@ end
 
 function M.branch(root) return vim.trim(run(root, { "branch", "--show-current" })) end
 function M.status(root) return run(root, { "status", "--porcelain=v1" }) end
+local function status_z(root) return run(root, { "status", "--porcelain=v1", "-z" }) end
 
 function M.status_filtered(root)
   local out = {}
@@ -52,12 +53,23 @@ end
 
 function M.changed_files(root)
   local files = {}
-  for line in M.status(root):gmatch("[^\n]+") do
-    local status = line:sub(1, 2)
-    local file = vim.trim(line:sub(4))
-    if file:find(" -> ", 1, true) then file = file:match("%-%> (.+)$") end
-    if file ~= "" and not path.is_ignored(file, config.get().ignore) then
-      table.insert(files, { status = status, file = file })
+  local out = status_z(root)
+  local i = 1
+  while i <= #out do
+    local nul = out:find("\0", i, true)
+    if not nul then break end
+    local entry = out:sub(i, nul - 1)
+    i = nul + 1
+    if entry ~= "" then
+      local status = entry:sub(1, 2)
+      local file = entry:sub(4)
+      if status:find("R", 1, true) or status:find("C", 1, true) then
+        local next_nul = out:find("\0", i, true)
+        i = next_nul and (next_nul + 1) or (#out + 1)
+      end
+      if file ~= "" and not path.is_ignored(file, config.get().ignore) then
+        table.insert(files, { status = status, file = file })
+      end
     end
   end
   return files

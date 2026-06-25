@@ -10,6 +10,7 @@ local state = require("master-hand.state")
 local ui = require("master-hand.ui")
 local search = require("master-hand.search")
 local index = require("master-hand.index")
+local git = require("master-hand.git")
 
 local function assert_eq(a, b, msg) assert(vim.deep_equal(a, b), (msg or "assert_eq") .. ": " .. vim.inspect(a) .. " ~= " .. vim.inspect(b)) end
 
@@ -24,6 +25,24 @@ local idx = index.build(vim.fn.getcwd())
 assert(idx.files_seen > 0, "index sees repo files")
 assert(idx.languages.Lua and idx.languages.Lua > 0, "index detects Lua files")
 assert(#idx.entrypoints > 0, "index detects entrypoints")
+
+local tmp_repo = vim.fn.tempname()
+vim.fn.mkdir(tmp_repo, "p")
+local function git_ok(args)
+  local res = vim.system(args, { cwd = tmp_repo, text = true }):wait()
+  assert(res.code == 0, table.concat(args, " ") .. ": " .. (res.stderr or res.stdout or "failed"))
+end
+git_ok({ "git", "init" })
+git_ok({ "git", "config", "user.email", "master-hand@example.invalid" })
+git_ok({ "git", "config", "user.name", "Master Hand Test" })
+vim.fn.writefile({ "return 1" }, tmp_repo .. "/quoted \"old\".lua")
+git_ok({ "git", "add", "." })
+git_ok({ "git", "commit", "-m", "init" })
+git_ok({ "git", "mv", "quoted \"old\".lua", "quoted \"new\".lua" })
+local changed = git.changed_files(tmp_repo)
+assert_eq(#changed, 1, "git status parser handles quoted rename")
+assert_eq(changed[1].file, "quoted \"new\".lua", "git status parser returns renamed target")
+vim.fn.delete(tmp_repo, "rf")
 
 local s = schema.suggestion({ title = "Do thing", confidence = 9, action_type = "command" })
 assert_eq(s.confidence, 1)
