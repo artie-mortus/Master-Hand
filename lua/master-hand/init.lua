@@ -10,6 +10,7 @@ local diff = require("master-hand.diff")
 local runner = require("master-hand.runner")
 local search = require("master-hand.search")
 local providers = require("master-hand.providers")
+local auth = require("master-hand.auth")
 local agent = require("master-hand.agent")
 
 local M = {}
@@ -156,6 +157,11 @@ local model_providers = {
   openai_compatible = true,
   ollama_cloud = true,
   ["ollama-cloud"] = true,
+  codex = true,
+  claude = true,
+  gemini = true,
+  pi = true,
+  cli = true,
 }
 
 local function normalize_provider(provider)
@@ -194,8 +200,9 @@ local function apply_model_defaults(update)
   else
     update.endpoint = vim.NIL
     update.api_key_env = vim.NIL
+    if update.provider == "codex" or update.provider == "claude" or update.provider == "gemini" or update.provider == "pi" or update.provider == "cli" then update.api_key = vim.NIL end
   end
-  if update.provider == "auto" or update.provider == "none" then update.name = vim.NIL end
+  if update.provider == "auto" or update.provider == "none" or update.provider == "codex" or update.provider == "claude" or update.provider == "gemini" or update.provider == "pi" then update.name = vim.NIL end
   return update
 end
 
@@ -205,6 +212,8 @@ local function model_summary()
   if model.name and model.name ~= "" then table.insert(parts, "name=" .. model.name) end
   if model.endpoint and model.endpoint ~= "" then table.insert(parts, "endpoint=" .. model.endpoint) end
   if model.api_key_env and model.api_key_env ~= "" then table.insert(parts, "api_key_env=" .. model.api_key_env) end
+  if model.api_key and model.api_key ~= "" then table.insert(parts, "api_key=" .. auth.mask(model.api_key)) end
+  if model.executable and model.executable ~= "" then table.insert(parts, "executable=" .. model.executable) end
   return table.concat(parts, " ")
 end
 
@@ -246,6 +255,94 @@ function M.model(args)
     ui.render()
   end
   vim.notify("Master Hand model: " .. model_summary())
+end
+
+local function current_model_with(update)
+  return vim.tbl_deep_extend("force", config.get().model or {}, update or {})
+end
+
+local function auth_env_for(update)
+  local env = update.api_key_env or auth.default_env(current_model_with(update))
+  return env or "MASTER_HAND_API_KEY"
+end
+
+local function run_login_background(argv)
+  vim.system(argv, { text = true, timeout = config.get().model.timeout_ms }, function(res)
+    vim.schedule(function()
+      local output = vim.trim((res.stdout or "") .. (res.stderr or ""))
+      if res.code == 0 then
+        vim.notify("Master Hand auth login complete" .. (output ~= "" and (": " .. output) or ""))
+      else
+        vim.notify("Master Hand auth login failed" .. (output ~= "" and (": " .. output) or (" (exit " .. tostring(res.code) .. ")")), vim.log.levels.ERROR)
+      end
+    end)
+  end)
+end
+
+function M.auth(args)
+  args = vim.deepcopy(args or {})
+  if #args == 0 then
+    vim.notify("Master Hand auth: " .. auth.status(config.get().model))
+    return
+  end
+
+  if args[1] == "clear" then
+    local env = auth.default_env(config.get().model)
+    if env then vim.env[env] = nil end
+    config.set_model({ api_key = vim.NIL, api_key_env = vim.NIL })
+    vim.notify("Master Hand auth cleared: " .. auth.status(config.get().model))
+    return
+  end
+
+  local update = {}
+  if model_providers[args[1]] and args[1] ~= "auto" and args[1] ~= "none" then
+    update = apply_model_defaults({ provider = args[1] })
+    table.remove(args, 1)
+  end
+
+  local value = args[1]
+  if value == "login" then
+    config.set_model(update)
+    local argv, login_err = auth.login_command(config.get().model)
+    if not argv then
+      vim.notify("Master Hand auth login failed: " .. tostring(login_err), vim.log.levels.ERROR)
+      return
+    end
+    run_login_background(argv)
+    vim.notify("Master Hand auth login started in background for " .. tostring(config.get().model.provider) .. "; browser may open if provider requires it")
+    return
+  end
+  if auth.is_account_provider(current_model_with(update).provider) then
+    config.set_model(update)
+    if not value or value == "" or value == "status" then
+      vim.notify("Master Hand auth: " .. auth.status(config.get().model) .. " (run :MHAuth " .. tostring(config.get().model.provider) .. " login if needed)")
+    else
+      vim.notify("Master Hand auth: " .. tostring(config.get().model.provider) .. " uses account login, not API keys. Run :MHAuth " .. tostring(config.get().model.provider) .. " login", vim.log.levels.WARN)
+    end
+    return
+  end
+  if value and value:match("^env:") then
+    update.api_key_env = value:sub(5)
+    update.api_key = vim.NIL
+    config.set_model(update)
+    vim.notify("Master Hand auth: " .. auth.status(config.get().model))
+    return
+  end
+
+  if not value or value == "" then
+    value = vim.fn.inputsecret("Master Hand API key: ")
+  end
+  if not value or value == "" then
+    vim.notify("Master Hand auth unchanged", vim.log.levels.WARN)
+    return
+  end
+
+  local env = auth_env_for(update)
+  vim.env[env] = value
+  update.api_key_env = env
+  update.api_key = vim.NIL
+  config.set_model(update)
+  vim.notify("Master Hand auth: " .. auth.status(config.get().model))
 end
 
 function M.model_status()

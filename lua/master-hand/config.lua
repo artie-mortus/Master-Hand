@@ -26,9 +26,13 @@ M.defaults = {
     ".env.*",
   },
   model = {
-    provider = "auto", -- none | auto | openai_compatible | openrouter | ollama | anthropic
+    provider = "auto", -- none | auto | openai_compatible | openrouter | ollama | anthropic | codex | claude | gemini | pi | cli
     endpoint = nil,
     api_key_env = nil,
+    api_key = nil,
+    executable = nil,
+    command = nil, -- CLI provider argv template; supports {prompt}
+    login_command = nil,
     name = nil,
     context_limit = 32000,
     timeout_ms = 60000,

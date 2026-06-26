@@ -26,7 +26,7 @@ Think of it as an assistant that sits beside your editor and says: "here is like
 | **Fast sidebar UX** | `:MH` opens immediately; model-backed suggestions load async with a spinner. |
 | **Intentional model use** | Built for times when you want AI help, not background autonomy. You open it, ask, review, then approve. |
 | **Safe automation boundary** | Suggestions are advisory by default; diffs, commands, and agent handoffs require explicit approval. |
-| **Model optional** | Works with local heuristics only, local Ollama, Ollama Cloud, OpenAI-compatible APIs, OpenRouter, or Anthropic. |
+| **Model optional** | Works with local heuristics only, local Ollama, Ollama Cloud, OpenAI-compatible APIs, OpenRouter, Anthropic, Pi, or login-backed CLI subscriptions (Codex/Claude/Gemini). |
 | **Goal steering** | `:MHGoal` tells the helper what you are trying to do and blends it with short-term repo state. |
 | **Agent handoff** | Approved suggestions can go to pi, Codex, tmux, Zellij, a Neovim terminal, or custom argv command. |
 
@@ -73,6 +73,7 @@ Intentional flow: **open → ask/goal → read suggestions → approve only usef
   - tree-sitter parsers for symbol context
   - `curl` for remote model providers
   - `ollama` for local `provider = "auto"` / `provider = "ollama"`
+  - Optional login-backed/background CLIs (`pi`, `codex`, `claude`, or `gemini`) when using local/account tools instead of API keys
   - `pi`, `codex`, `tmux`, or `zellij` for external agent handoff
 
 </details>
@@ -153,6 +154,37 @@ require("master-hand").setup({
 })
 ```
 
+### Account/subscription login (no API key)
+
+Master Hand can use logged-in CLI tools instead of provider API keys:
+
+```vim
+:MHModel pi           " model calls use background pi --no-tools --no-session -p
+
+:MHModel codex        " model calls use headless codex exec after login
+:MHAuth codex login   " runs codex login in background; browser may open
+
+:MHModel claude       " model calls use headless claude -p after login
+:MHAuth claude login
+
+:MHModel gemini       " model calls use headless gemini -p after login
+:MHAuth gemini login
+```
+
+Login runs in background and lets provider CLI open a browser if needed. Later model suggestions call CLI in background/headless; no Pi/Codex/Claude/Gemini UI opens during suggestion generation. Pi model calls use `--no-tools --no-session` so they cannot edit files. Approved suggestions still use configured agent handoff (`pi`, tmux, terminal, etc.).
+
+For custom subscription CLIs, configure argv without shell strings:
+
+```lua
+require("master-hand").setup({
+  model = {
+    provider = "cli",
+    command = { "my-ai-cli", "run", "{prompt}" },
+    login_command = { "my-ai-cli", "login" },
+  },
+})
+```
+
 ### OpenAI-compatible API
 
 ```lua
@@ -161,7 +193,7 @@ require("master-hand").setup({
     provider = "openai_compatible",
     endpoint = "https://api.openai.com/v1/chat/completions",
     name = "gpt-4.1-mini",
-    api_key_env = "OPENAI_API_KEY",
+    api_key_env = "OPENAI_API_KEY", -- or use :MHAuth provider env:VAR
   },
 })
 ```
@@ -174,7 +206,7 @@ require("master-hand").setup({
     provider = "ollama",
     endpoint = "https://ollama.com/api/chat",
     name = "gpt-oss:120b",
-    api_key_env = "OLLAMA_API_KEY",
+    api_key_env = "OLLAMA_API_KEY", -- or use :MHAuth ollama-cloud env:VAR
   },
 })
 ```
@@ -194,6 +226,7 @@ require("master-hand").setup({
 | `:MasterHandModelSuggest` | `:MHModelSuggest` | Alias for `:MHSuggest` |
 | `:MasterHandStatus` | `:MHStatus` | Print cached context summary |
 | `:MasterHandModel [args]` | `:MHModel [args]` | Show/change runtime model config |
+| `:MasterHandAuth [provider] [login\|env:VAR\|key]` | `:MHAuth [provider] [login\|env:VAR\|key]` | Show/set AI provider auth for current Neovim session |
 | `:MasterHandModelStatus` | `:MHModelStatus` | Test configured model connection |
 | `:MasterHandContext` | `:MHContext` | Show cached context snapshot |
 | `:MasterHandIndex` | `:MHIndex` | Show cached repo index |
@@ -245,6 +278,10 @@ Runtime model switching:
 :MHModel qwen3-coder:latest      " infer local Ollama
 :MHModel ollama qwen3-coder:latest
 :MHModel ollama-cloud gpt-oss:120b
+:MHModel pi                     " use Pi as read-only/background model provider
+:MHModel codex                  " use logged-in Codex subscription CLI
+:MHModel claude                 " use logged-in Claude subscription CLI
+:MHModel gemini                 " use logged-in Gemini CLI
 :MHModel openai gpt-4.1-mini
 :MHModel openrouter anthropic/claude-3.5-sonnet
 :MHModel anthropic claude-sonnet-4-20250514
@@ -257,7 +294,20 @@ Advanced key/value form:
 :MHModel provider=ollama-cloud model=gpt-oss:120b
 ```
 
-`:MHModel` changes runtime config for current Neovim session. Put the same config in `setup()` for persistent defaults.
+Auth helpers:
+
+```vim
+:MHAuth                         " show auth status for active provider
+:MHAuth codex login             " run account/subscription CLI login in background; browser may open
+:MHAuth claude login
+:MHAuth gemini login
+:MHAuth openai env:OPENAI_API_KEY
+:MHAuth openrouter env:OPENROUTER_API_KEY
+:MHAuth anthropic               " prompt for key with inputsecret()
+:MHAuth clear                   " unset Master Hand's process-env key for active provider
+```
+
+`:MHModel` and `:MHAuth` change runtime config for current Neovim session. Put model defaults in `setup()` for persistent config. Prefer subscription CLI login when available; otherwise use `env:VAR` or shell env vars so API keys do not enter command history.
 
 </details>
 
@@ -332,7 +382,7 @@ require("master-hand").setup({
   suggestion_frequency_ms = 5000,
   ignore = { ".git/", "node_modules/", "dist/", "build/", ".env", ".env.*" },
   model = {
-    provider = "auto", -- none | auto | openai_compatible | openrouter | ollama | anthropic
+    provider = "auto", -- none | auto | openai_compatible | openrouter | ollama | anthropic | pi | codex | claude | gemini | cli
     timeout_ms = 60000,
     temperature = 0.2,
     max_tokens = 1200,

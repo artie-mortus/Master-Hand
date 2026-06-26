@@ -5,6 +5,7 @@ local path = require("master-hand.path")
 local schema = require("master-hand.schema")
 local runner = require("master-hand.runner")
 local providers = require("master-hand.providers")
+local auth = require("master-hand.auth")
 local agent = require("master-hand.agent")
 local actions = require("master-hand.actions")
 local state = require("master-hand.state")
@@ -112,12 +113,32 @@ end
 content, perr = providers.complete({}, { provider = "openai_compatible", endpoint = "http://example.invalid", name = "x" })
 assert_eq(content, "[]", "provider returns content")
 assert_eq(perr, nil, "successful provider call has nil error")
+local cli_call = nil
+vim.system = function(argv_arg, opts_arg)
+  cli_call = { argv = argv_arg, opts = opts_arg }
+  return { wait = function() return { code = 0, signal = 0, stdout = "cli ok\n", stderr = "" } end }
+end
+content, perr = providers.complete({ { role = "user", content = "hi" } }, { provider = "claude" })
+assert_eq(content, "cli ok", "subscription cli provider returns stdout")
+assert_eq(cli_call.argv[1], "claude", "subscription cli provider uses provider executable")
+assert(cli_call.argv[#cli_call.argv]:match("user:\nhi"), "subscription cli provider sends prompt without API")
+assert_eq(perr, nil, "successful cli provider call has nil error")
+content, perr = providers.complete({ { role = "user", content = "hi" } }, { provider = "pi" })
+assert_eq(content, "cli ok", "Pi model provider returns stdout")
+assert_eq(cli_call.argv[1], "pi", "Pi model provider uses pi executable")
+assert(vim.tbl_contains(cli_call.argv, "--no-tools"), "Pi model provider disables tools")
+assert(vim.tbl_contains(cli_call.argv, "--no-session"), "Pi model provider is ephemeral")
+assert_eq(perr, nil, "successful Pi provider call has nil error")
 vim.system = original_system
 
 content, perr = providers.complete({}, { provider = "anthropic", name = "claude-sonnet-4-20250514", api_key_env = "MASTER_HAND_TEST_MISSING_KEY" })
 assert(not content and perr:match("api key missing"), "anthropic requires api key")
 content, perr = providers.complete({}, { provider = "openrouter", name = "anthropic/claude-3.5-sonnet", api_key_env = "MASTER_HAND_TEST_MISSING_KEY" })
 assert(not content and perr:match("openrouter api key missing"), "openrouter requires api key")
+vim.env.MASTER_HAND_TEST_OPENROUTER_KEY = "mh-secret"
+assert_eq(auth.key({ provider = "openrouter", api_key_env = "MASTER_HAND_TEST_OPENROUTER_KEY" }), "mh-secret", "auth reads provider key env")
+assert(auth.status({ provider = "openrouter", api_key_env = "MASTER_HAND_TEST_OPENROUTER_KEY" }):match("auth=set"), "auth status reports configured key")
+vim.env.MASTER_HAND_TEST_OPENROUTER_KEY = nil
 content, perr = providers.complete({}, { provider = "none" })
 assert(not content and perr:match("disabled"), "provider none disables model calls")
 
@@ -150,6 +171,40 @@ mh.model({ "openrouter", "anthropic/claude-3.5-sonnet" })
 assert_eq(config.get().model.provider, "openrouter", ":MHModel openrouter sets provider")
 assert_eq(config.get().model.name, "anthropic/claude-3.5-sonnet", ":MHModel openrouter sets model")
 assert_eq(config.get().model.api_key_env, "OPENROUTER_API_KEY", ":MHModel openrouter sets default api env")
+mh.auth({ "openai", "env:MASTER_HAND_TEST_OPENAI_KEY" })
+assert_eq(config.get().model.provider, "openai_compatible", ":MHAuth can select provider")
+assert_eq(config.get().model.api_key_env, "MASTER_HAND_TEST_OPENAI_KEY", ":MHAuth accepts env:VAR")
+mh.auth({ "openrouter", "mh-secret" })
+assert_eq(config.get().model.provider, "openrouter", ":MHAuth direct key can select provider")
+assert_eq(vim.env.OPENROUTER_API_KEY, "mh-secret", ":MHAuth direct key stores process env")
+assert_eq(config.get().model.api_key_env, "OPENROUTER_API_KEY", ":MHAuth direct key uses provider default env")
+mh.auth({ "clear" })
+assert_eq(vim.env.OPENROUTER_API_KEY, nil, ":MHAuth clear unsets process env")
+mh.model({ "codex" })
+assert_eq(config.get().model.provider, "codex", ":MHModel supports subscription-backed Codex provider")
+assert_eq(config.get().model.api_key_env, nil, ":MHModel codex does not require api key env")
+assert(auth.status(config.get().model):match("auth=account%-cli"), ":MHModel codex reports account cli auth")
+mh.model({ "pi" })
+assert_eq(config.get().model.provider, "pi", ":MHModel supports Pi as a background model provider")
+assert_eq(config.get().model.api_key_env, nil, ":MHModel pi does not require api key env")
+assert(auth.status(config.get().model):match("auth=account%-cli"), ":MHModel pi reports account cli auth")
+mh.auth({ "claude" })
+assert_eq(config.get().model.provider, "claude", ":MHAuth can select account cli provider without prompting for key")
+local login_argv, termopen_called = nil, false
+local original_login_system, original_termopen = vim.system, vim.fn.termopen
+vim.system = function(argv_arg, _, cb_arg)
+  login_argv = argv_arg
+  if cb_arg then cb_arg({ code = 0, signal = 0, stdout = "", stderr = "" }) end
+  return { pid = 456 }
+end
+vim.fn.termopen = function()
+  termopen_called = true
+  return 1
+end
+mh.auth({ "codex", "login" })
+assert_eq(login_argv, { "codex", "login" }, ":MHAuth login runs provider login command")
+assert(not termopen_called, ":MHAuth login runs in background, no Neovim terminal window")
+vim.system, vim.fn.termopen = original_login_system, original_termopen
 mh.model({ "provider=openrouter", "model=anthropic/claude-3.5-sonnet", "api_key_env=OPENROUTER_API_KEY" })
 assert_eq(config.get().model.provider, "openrouter", ":MHModel key=value sets provider")
 assert_eq(config.get().model.name, "anthropic/claude-3.5-sonnet", ":MHModel model= maps to name")

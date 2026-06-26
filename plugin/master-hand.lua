@@ -6,13 +6,20 @@ vim.g.loaded_master_hand = 1
 
 local mh = require("master-hand")
 
-local function model_complete(arglead)
-  local items = { "auto", "none", "ollama", "ollama-cloud", "openai", "openrouter", "anthropic", "openai_compatible", "provider=", "model=", "endpoint=", "api_key_env=" }
+local function complete_from(items, arglead)
   local out = {}
   for _, item in ipairs(items) do
     if item:find(arglead, 1, true) == 1 then table.insert(out, item) end
   end
   return out
+end
+
+local function model_complete(arglead)
+  return complete_from({ "auto", "none", "ollama", "ollama-cloud", "openai", "openrouter", "anthropic", "openai_compatible", "codex", "claude", "gemini", "pi", "cli", "provider=", "model=", "endpoint=", "api_key_env=", "api_key=", "executable=", "command=", "login_command=" }, arglead)
+end
+
+local function auth_complete(arglead)
+  return complete_from({ "openai", "openrouter", "anthropic", "ollama-cloud", "codex", "claude", "gemini", "pi", "cli", "login", "env:OPENAI_API_KEY", "env:OPENROUTER_API_KEY", "env:ANTHROPIC_API_KEY", "env:OLLAMA_API_KEY", "clear" }, arglead)
 end
 
 local commands = {
@@ -24,6 +31,7 @@ local commands = {
   MasterHandModelSuggest = { fn = function() mh.model_suggest() end, opts = {}, aliases = { "MHModelSuggest" } },
   MasterHandStatus = { fn = function() mh.status() end, opts = {}, aliases = { "MHStatus" } },
   MasterHandModel = { fn = function(opts) mh.model(opts.fargs) end, opts = { nargs = "*", complete = model_complete }, aliases = { "MHModel" } },
+  MasterHandAuth = { fn = function(opts) mh.auth(opts.fargs) end, opts = { nargs = "*", complete = auth_complete }, aliases = { "MHAuth" } },
   MasterHandModelStatus = { fn = function() mh.model_status() end, opts = {}, aliases = { "MHModelStatus" } },
   MasterHandContext = { fn = function() mh.context() end, opts = {}, aliases = { "MHContext" } },
   MasterHandIndex = { fn = function() mh.index() end, opts = {}, aliases = { "MHIndex" } },
