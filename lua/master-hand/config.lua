@@ -57,6 +57,17 @@ M.defaults = {
     blocklist = { "rm", "sudo", "git reset", "git clean" },
     timeout_ms = 10000,
   },
+  agent = {
+    enabled = false,
+    adapter = "auto", -- auto | pi | codex | tmux | zellij | terminal
+    executable = nil, -- defaults to pi, or codex when adapter/executable says codex
+    command = nil, -- optional argv template; supports {prompt}, {root}, {prompt_q}, {root_q}
+    target = nil, -- tmux target pane/window; or MASTER_HAND_TMUX_TARGET
+    auto_checktime = true,
+    set_autoread = true,
+    checktime_interval_ms = 2000,
+    checktime_duration_ms = 120000,
+  },
   storage = {
     enabled = true,
   },

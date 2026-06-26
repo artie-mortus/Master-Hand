@@ -147,37 +147,45 @@ end
 function M.generate_async(opts, cb)
   opts = opts or {}
   cb = cb or function() end
-  local snap = context.snapshot({ quick = true })
-  local initial_suggestions = heuristic(snap)
+  local quick_snap = context.snapshot({ quick = true })
+  local initial_suggestions = heuristic(quick_snap)
   set_filtered(initial_suggestions)
 
-  local model = config.get().model or {}
-  if model.provider == "none" then cb(initial_suggestions); return initial_suggestions end
-
-  infer_model_goal_async(snap, opts, function(refined_snap, goal_err, goal_content)
-    local local_suggestions = heuristic(refined_snap)
+  -- Show quick local suggestions immediately, then scan the project on the next
+  -- loop tick so :MH can render before git/index/rg work runs.
+  vim.schedule(function()
+    local snap = context.snapshot({ quick = false })
+    local local_suggestions = heuristic(snap)
     set_filtered(local_suggestions)
-    if model.provider == "auto" and goal_err and not goal_content then cb(local_suggestions, goal_err); return end
 
-    local request = vim.deepcopy(refined_snap)
-    request.code = code_context(request)
-    providers.complete_async(prompts.suggestions(request, opts.mode or "suggest", local_suggestions), nil, function(content, err)
-      local out = vim.deepcopy(local_suggestions)
-      if not content then
-        if model.provider ~= "auto" then
-          table.insert(out, item("provider-error", "Model provider failed", err, {}, 0.3, "Check model config or continue with heuristic suggestions.", "advice"))
+    local model = config.get().model or {}
+    if model.provider == "none" then cb(local_suggestions); return end
+
+    infer_model_goal_async(snap, opts, function(refined_snap, goal_err, goal_content)
+      local refined_local_suggestions = heuristic(refined_snap)
+      set_filtered(refined_local_suggestions)
+      if model.provider == "auto" and goal_err and not goal_content then cb(refined_local_suggestions, goal_err); return end
+
+      local request = vim.deepcopy(refined_snap)
+      request.code = code_context(request)
+      providers.complete_async(prompts.suggestions(request, opts.mode or "suggest", refined_local_suggestions), nil, function(content, err)
+        local out = vim.deepcopy(refined_local_suggestions)
+        if not content then
+          if model.provider ~= "auto" then
+            table.insert(out, item("provider-error", "Model provider failed", err, {}, 0.3, "Check model config or continue with heuristic suggestions.", "advice"))
+          end
+          cb(set_filtered(out), err)
+          return
         end
-        cb(set_filtered(out), err)
-        return
-      end
-      local ok, decoded = pcall(vim.json.decode, content)
-      if ok then
-        vim.list_extend(out, schema.list(decoded))
-        cb(set_filtered(out))
-      else
-        table.insert(out, item("provider-parse-error", "Model suggestions malformed", "Provider did not return JSON array.", {}, 0.3, "Retry or adjust provider prompt/model.", "advice"))
-        cb(set_filtered(out), "Provider did not return JSON array")
-      end
+        local ok, decoded = pcall(vim.json.decode, content)
+        if ok then
+          vim.list_extend(out, schema.list(decoded))
+          cb(set_filtered(out))
+        else
+          table.insert(out, item("provider-parse-error", "Model suggestions malformed", "Provider did not return JSON array.", {}, 0.3, "Retry or adjust provider prompt/model.", "advice"))
+          cb(set_filtered(out), "Provider did not return JSON array")
+        end
+      end)
     end)
   end)
   return initial_suggestions

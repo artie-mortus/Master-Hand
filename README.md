@@ -15,6 +15,7 @@ Master Hand is an experimental Neovim assistant that reads repo/editor context, 
 - **Model-backed review** — combines local heuristics with Ollama, Ollama Cloud, OpenAI-compatible APIs, OpenRouter, or Anthropic.
 - **In-editor model switching** — change providers/models at runtime with `:MHModel`.
 - **Approval-first safety** — suggestions never edit files or run commands unless you approve a pending action.
+- **Agent handoff** — approved suggestions can be sent to pi, Codex, tmux, Zellij, or a custom argv command, then Neovim buffers refresh with `:checktime`.
 
 ## Installation
 
@@ -42,20 +43,22 @@ Example `lazy.nvim` config:
 :MHModel                    " show active model
 :MHModel qwen3-coder-local:latest
 :MHModelStatus              " test model connection
+:MHSend 1                   " send suggestion #1 to configured external agent
+:MHSync                     " refresh buffers after external agent edits
 ```
 
 Inside sidebar:
 
 | Key | Action |
 | --- | --- |
-| `a` | Mark suggestion accepted/useful |
+| `a` | Mark suggestion accepted/useful; if `agent.enabled`, approve/send to external agent |
 | `d` | Dismiss suggestion |
 | `p` | Postpone suggestion |
 | `v` | View details |
 | `r` | Refresh suggestions |
 | `q` | Close |
 
-`a` records feedback only. It does **not** apply edits or run commands. Real work goes through pending actions plus `:MHApprove`.
+By default, `a` records feedback only. With `agent.enabled = true`, `a` approves the selected suggestion, sends it to your configured external coding agent, and polls `:checktime` so Neovim sees saved edits. Local diffs and commands still go through pending actions plus `:MHApprove`.
 
 ## How suggestions work
 
@@ -104,6 +107,52 @@ Model name alone is inferred: `gpt-4*`/`gpt-5*`/`o*` uses OpenAI; everything els
 ```
 
 `:MHModel` changes runtime config for the current Neovim session. Add same model to `setup()` for permanent default.
+
+### Agent handoff
+
+Keep default disabled for safety. Enable it when you want approved suggestions to leave Neovim and go to another coding agent:
+
+```lua
+require("master-hand").setup({
+  agent = {
+    enabled = true,
+    adapter = "codex", -- codex exec <prompt>
+  },
+})
+```
+
+Custom command template:
+
+```lua
+require("master-hand").setup({
+  agent = {
+    enabled = true,
+    command = { "pi", "{prompt}" }, -- argv only; no shell string
+  },
+})
+```
+
+Tmux target pane/window:
+
+```lua
+require("master-hand").setup({
+  agent = {
+    enabled = true,
+    adapter = "tmux",
+    target = "master-hand-agent", -- or MASTER_HAND_TMUX_TARGET
+  },
+})
+```
+
+Zellij starts a new pane with `pi` by default:
+
+```lua
+require("master-hand").setup({
+  agent = { enabled = true, adapter = "zellij", executable = "pi" },
+})
+```
+
+With `adapter = "auto"`, Master Hand uses a configured tmux target, Zellij pane, or a Neovim terminal split. After handoff, it runs `:checktime` for a short window so saved external edits reload into Neovim. Use `:MHSync` to refresh manually.
 
 ### Config examples
 
@@ -191,6 +240,8 @@ require("master-hand").setup({
 | `:MasterHandReject [id]` | `:MHReject [id]` | Reject pending action |
 | `:MasterHandRun <argv...>` | `:MHRun <argv...>` | Queue command for approval |
 | `:MasterHandPending` | `:MHPending` | Show pending actions |
+| `:MasterHandApproveSuggestion [n]` | `:MHSend [n]` | Send approved suggestion to configured external agent |
+| `:MasterHandSync` | `:MHSync` | Refresh buffers after external edits |
 | `:MasterHandSearch <query>` | `:MHSearch <query>` | Search repo with ripgrep |
 
 ## Sidebar config
@@ -210,7 +261,7 @@ The sidebar uses `winfixwidth` and reapplies width on `VimResized`, so i3/fullsc
 ## Safety model
 
 - No automatic edits or command execution.
-- Accepting a suggestion records feedback only.
+- Accepting a suggestion records feedback only unless `agent.enabled` is explicitly set.
 - Diffs must pass `git apply --check` before approval and before apply.
 - Commands use argv arrays, not shell strings.
 - Shell metacharacters and dangerous commands are blocked.

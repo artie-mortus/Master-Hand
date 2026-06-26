@@ -10,6 +10,7 @@ local diff = require("master-hand.diff")
 local runner = require("master-hand.runner")
 local search = require("master-hand.search")
 local providers = require("master-hand.providers")
+local agent = require("master-hand.agent")
 
 local M = {}
 local timer = nil
@@ -92,6 +93,7 @@ local function setup_autocmds()
     callback = function()
       stop_timer()
       stop_loading()
+      agent.stop_sync_poll()
       save_state()
     end,
   })
@@ -273,6 +275,47 @@ end
 function M.search(query)
   local hits = search.rg(state.data.root, query, config.get().context.max_search_results)
   ui.show_text("Master Hand Search", vim.inspect(hits))
+end
+
+function M.sync()
+  agent.sync()
+  ui.render()
+  vim.notify("Master Hand checked external file changes")
+end
+
+local function suggestion_by_index(index)
+  index = tonumber(index)
+  if not index then return nil end
+  return state.data.suggestions[index]
+end
+
+function M.approve_suggestion(index)
+  local suggestion = suggestion_by_index(index)
+  if not suggestion then
+    suggestion = ui.suggestion_under_cursor()
+  end
+  if not suggestion then
+    vim.notify("No suggestion selected", vim.log.levels.WARN)
+    return
+  end
+  state.feedback(suggestion.id, "accepted")
+  save_state()
+  local res, err = agent.dispatch(suggestion)
+  if not res then
+    vim.notify("Agent handoff failed: " .. tostring(err), vim.log.levels.ERROR)
+    ui.render()
+    return
+  end
+  vim.notify("Sent suggestion to agent; watching files for changes")
+  ui.render()
+end
+
+function M.accept_suggestion()
+  if config.get().agent.enabled then
+    M.approve_suggestion()
+  else
+    M.feedback("accepted")
+  end
 end
 
 function M.prepare_diff(request)

@@ -52,7 +52,11 @@ local function lines()
     table.insert(out, "Last command: exit " .. state.data.last_command.code)
   end
   table.insert(out, "")
-  table.insert(out, "Keys: a accept  d dismiss  p postpone  r refresh  v view  q close")
+  if (config.get().agent or {}).enabled then
+    table.insert(out, "Keys: a approve/send  d dismiss  p postpone  r refresh  v view  q close")
+  else
+    table.insert(out, "Keys: a accept  d dismiss  p postpone  r refresh  v view  q close")
+  end
   return out
 end
 
@@ -116,7 +120,7 @@ function M.open()
   end
   map("q", require("master-hand.ui").close)
   map("r", require("master-hand").suggest)
-  map("a", function() require("master-hand").feedback("accepted") end)
+  map("a", function() require("master-hand").accept_suggestion() end)
   map("d", function() require("master-hand").feedback("dismissed") end)
   map("p", function() require("master-hand").feedback("postponed") end)
   map("v", require("master-hand.ui").view_selected)

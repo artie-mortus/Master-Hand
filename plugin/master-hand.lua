@@ -32,6 +32,8 @@ local commands = {
   MasterHandReject = { fn = function(opts) mh.reject(opts.args) end, opts = { nargs = "?" }, aliases = { "MHReject" } },
   MasterHandRun = { fn = function(opts) mh.run_command(opts.fargs) end, opts = { nargs = "+" }, aliases = { "MHRun" } },
   MasterHandPending = { fn = function() mh.pending() end, opts = {}, aliases = { "MHPending" } },
+  MasterHandApproveSuggestion = { fn = function(opts) mh.approve_suggestion(opts.args) end, opts = { nargs = "?" }, aliases = { "MHApproveSuggestion", "MHSend" } },
+  MasterHandSync = { fn = function() mh.sync() end, opts = {}, aliases = { "MHSync" } },
   MasterHandSearch = { fn = function(opts) mh.search(opts.args) end, opts = { nargs = "+" }, aliases = { "MHSearch" } },
 }
 

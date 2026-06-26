@@ -5,6 +5,7 @@ local path = require("master-hand.path")
 local schema = require("master-hand.schema")
 local runner = require("master-hand.runner")
 local providers = require("master-hand.providers")
+local agent = require("master-hand.agent")
 local actions = require("master-hand.actions")
 local state = require("master-hand.state")
 local ui = require("master-hand.ui")
@@ -17,6 +18,7 @@ local function assert_eq(a, b, msg) assert(vim.deep_equal(a, b), (msg or "assert
 config.setup({ storage = { enabled = false } })
 assert_eq(config.get().model.provider, "auto")
 assert_eq(config.get().model.timeout_ms, 60000, "model timeout allows cold local models")
+assert_eq(config.get().agent.enabled, false, "agent handoff disabled by default")
 assert(path.is_ignored("node_modules/x.js", config.get().ignore), "node_modules ignored")
 assert(path.is_ignored(".env.local", config.get().ignore), ".env.* ignored")
 assert(not path.is_ignored("lua/x.lua", config.get().ignore), "lua file not ignored")
@@ -169,7 +171,9 @@ require("master-hand").setup({ proactivity = "passive", storage = { enabled = fa
 require("master-hand").open()
 assert(state.data.loading, ":MH shows loading state while model runs")
 assert(#state.data.suggestions > 0, ":MH shows local suggestions while model runs")
-assert(#async_calls == 1 and async_calls[1].messages[1].content:match("Infer steering intent"), ":MH starts async goal inference")
+assert(vim.wait(1000, function() return #async_calls == 1 end), ":MH scans project then starts async goal inference")
+assert(async_calls[1].messages[1].content:match("Infer steering intent"), ":MH starts async goal inference")
+assert(state.data.last_context.repo_index and state.data.last_context.repo_index.files_seen > 0, ":MH async path scans project before model goal inference")
 async_calls[1].cb(vim.json.encode({ long_term_goal = "Async long goal", short_term_goal = "Async short goal", confidence = 0.9 }))
 assert(state.data.loading, "loading continues while async suggestions run")
 assert(#async_calls == 2, ":MH starts async model suggestions after goal inference")
@@ -199,5 +203,27 @@ require("master-hand").set_goal("Ship explicit goal override")
 assert(state.data.long_term_goal == "Ship explicit goal override", "user goal steers long-term intent")
 assert(state.data.long_term_goal_source == "user", "user steering source tracked")
 assert(state.data.short_term_goal and state.data.short_term_goal ~= "", "short-term goal remains available")
+
+state.data.root = vim.fn.getcwd()
+state.data.last_context = { root = vim.fn.getcwd(), branch = "test", open_buffers = {}, changed_files = { "lua/master-hand/init.lua" }, diagnostics = { errors = 0, warnings = 0 } }
+state.set_suggestions({ schema.suggestion({ title = "Wire approved suggestions to agent", reason = "approval should leave Neovim", files = { "lua/master-hand/init.lua" }, next_action = "send to coding agent" }) })
+local prompt = agent.prompt(state.data.suggestions[1])
+assert(prompt:match("Wire approved suggestions to agent"), "agent prompt includes suggestion title")
+assert(prompt:match("lua/master%-hand/init%.lua"), "agent prompt includes files")
+local argv = agent.argv({ command = { "fake-agent", "--cwd", "{root}", "--task", "{prompt}" } }, "hello", "/tmp/repo")
+assert_eq(argv, { "fake-agent", "--cwd", "/tmp/repo", "--task", "hello" }, "agent command templates expand root/prompt")
+local captured = nil
+original_system = vim.system
+vim.system = function(argv_arg, opts_arg, cb_arg)
+  captured = { argv = argv_arg, opts = opts_arg }
+  if cb_arg then cb_arg({ code = 0, signal = 0, stdout = "", stderr = "" }) end
+  return { pid = 123 }
+end
+require("master-hand").setup({ proactivity = "passive", storage = { enabled = false }, agent = { enabled = true, command = { "fake-agent", "--task", "{prompt}" }, auto_checktime = false } })
+require("master-hand").approve_suggestion(1)
+assert(captured and captured.argv[1] == "fake-agent", "approved suggestion dispatches configured agent command")
+assert(captured.argv[3]:match("Wire approved suggestions to agent"), "agent receives approved suggestion prompt")
+assert_eq(state.data.feedback[state.data.suggestions[1].id], "accepted", "agent handoff records accepted feedback")
+vim.system = original_system
 
 print("master-hand tests ok")
