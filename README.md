@@ -38,6 +38,34 @@ Minimal safe `lazy.nvim` config:
 }
 ```
 
+### Configure sidebar from lazy.nvim
+
+Put sidebar size, side, and colors in `setup()`:
+
+```lua
+{
+  "artie-mortus/Master-Hand",
+  name = "master-hand",
+  config = function()
+    require("master-hand").setup({
+      ui = {
+        width = 46,
+        max_width_ratio = 0.45,
+        side = "right", -- "left" also works
+        highlights = {
+          MasterHandTitle = { fg = "#89b4fa", bold = true },
+          MasterHandSection = { fg = "#cba6f7", bold = true },
+          MasterHandSuggestionTitle = { fg = "#fab387" },
+          MasterHandApproval = { fg = "#f38ba8", bold = true },
+          MasterHandNext = { fg = "#a6e3a1" },
+          MasterHandKeys = { link = "Question" },
+        },
+      },
+    })
+  end,
+}
+```
+
 Default `proactivity = "passive"`: no typing-triggered model work. Use advisory mode if you want debounced refreshes after edits/diagnostics:
 
 ```lua
