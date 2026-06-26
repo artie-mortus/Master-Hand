@@ -24,7 +24,9 @@ Master Hand is an experimental Neovim assistant that watches repo/editor context
 - `git` for repo status/diff context.
 - Optional: `rg` for repo search, tree-sitter parsers for symbols, `curl` for remote model providers, `ollama` for local auto-provider, `pi`/`codex`/`tmux`/`zellij` for agent handoff.
 
-## Installation
+<details open>
+<summary><h2>Installation</h2></summary>
+
 
 Minimal safe `lazy.nvim` config:
 
@@ -76,6 +78,9 @@ require("master-hand").setup({
 })
 ```
 
+
+</details>
+
 ## Quick start
 
 ```vim
@@ -102,14 +107,21 @@ Inside sidebar:
 
 By default, `a` records feedback only. With `agent.enabled = true`, `a` approves the selected suggestion, sends it to your configured external coding agent, and polls `:checktime` so Neovim sees saved edits. Local diffs and commands still go through pending actions plus `:MHApprove`.
 
-## Proactivity modes
+<details>
+<summary><h2>Proactivity modes</h2></summary>
+
 
 - `passive` — default. Only explicit commands such as `:MH`, `:MHSuggest`, or `:MHPlan` generate suggestions.
 - `advisory`, `proactive`, `high_initiative` — currently share same safe behavior: editor events debounce suggestion refreshes, but still never edit files or run commands automatically.
 
 Editor autocmds track edits/diagnostics and start suggestion refreshes only when proactivity is not `passive`.
 
-## How suggestions work
+
+</details>
+
+<details>
+<summary><h2>How suggestions work</h2></summary>
+
 
 Suggestions run in two stages:
 
@@ -118,7 +130,12 @@ Suggestions run in two stages:
 
 `:MH` shows the sidebar immediately. If suggestions are empty, Master Hand starts model-backed suggestion generation in the background and shows a loading spinner instead of blocking Neovim.
 
-## Goal steering
+
+</details>
+
+<details>
+<summary><h2>Goal steering</h2></summary>
+
 
 Master Hand keeps steering intent instead of one hard task:
 
@@ -127,7 +144,12 @@ Master Hand keeps steering intent instead of one hard task:
 - The model can refine both goals from read-only context.
 - `:MHGoal <goal>` sets long-term steering when inferred direction is wrong.
 
-## Model providers
+
+</details>
+
+<details>
+<summary><h2>Model providers</h2></summary>
+
 
 With `provider = "auto"`, Master Hand uses a local Ollama model when available, preferring coder/code/Qwen models. If no model is reachable, local heuristic suggestions still work. Use `provider = "none"` to disable model calls.
 
@@ -280,7 +302,12 @@ require("master-hand").setup({
 })
 ```
 
-## Commands
+
+</details>
+
+<details>
+<summary><h2>Commands</h2></summary>
+
 
 | Command | Alias | Description |
 | --- | --- | --- |
@@ -304,7 +331,12 @@ require("master-hand").setup({
 | `:MasterHandSync` | `:MHSync` | Refresh buffers after external edits |
 | `:MasterHandSearch <query>` | `:MHSearch <query>` | Search repo with ripgrep |
 
-## Configuration reference
+
+</details>
+
+<details>
+<summary><h2>Configuration reference</h2></summary>
+
 
 Defaults live in `lua/master-hand/config.lua`. Common options:
 
@@ -349,7 +381,12 @@ require("master-hand").setup({
 
 Long-term goal and feedback persist to `stdpath("state") .. "/master-hand/state.json"` when storage is enabled.
 
-## Sidebar config
+
+</details>
+
+<details>
+<summary><h2>Sidebar config</h2></summary>
+
 
 ```lua
 require("master-hand").setup({
@@ -371,7 +408,12 @@ The sidebar uses `winfixwidth` and reapplies width on `VimResized`, so i3/fullsc
 
 Configurable sidebar highlight groups: `MasterHandTitle`, `MasterHandRule`, `MasterHandSection`, `MasterHandContext`, `MasterHandModel`, `MasterHandLoading`, `MasterHandSuggestionIndex`, `MasterHandSuggestionTitle`, `MasterHandReason`, `MasterHandMeta`, `MasterHandApproval`, `MasterHandFiles`, `MasterHandNext`, `MasterHandPending`, `MasterHandKeys`.
 
-## Safety model
+
+</details>
+
+<details>
+<summary><h2>Safety model</h2></summary>
+
 
 - No automatic edits or command execution.
 - Accepting a suggestion records feedback only unless `agent.enabled` is explicitly set.
@@ -380,8 +422,15 @@ Configurable sidebar highlight groups: `MasterHandTitle`, `MasterHandRule`, `Mas
 - Shell metacharacters and dangerous commands are blocked.
 - Pending diffs live in memory, not on disk.
 
-## Testing
+
+</details>
+
+<details>
+<summary><h2>Testing</h2></summary>
+
 
 ```sh
 nvim --headless -u NONE -l tests/run.lua
 ```
+
+</details>
