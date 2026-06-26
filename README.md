@@ -4,37 +4,58 @@
   <img src=".github/social-preview.png" alt="Master Hand project artwork" width="640">
 </p>
 
-**Master Hand** is a safe, repo-aware Neovim assistant. It watches editor context, reads bounded project state, infers what matters next, and surfaces actionable suggestions in a non-blocking sidebar. Local heuristics run first; optional model providers can review and refine suggestions.
-
-It is **approval-first** by design: Master Hand does not edit files, run commands, or hand work to external agents unless you explicitly approve a pending action or approved suggestion.
+<p align="center">
+  <strong>Safe, repo-aware AI assistance inside Neovim.</strong><br>
+  Local heuristics first. Optional models second. Explicit approval always.
+</p>
 
 > [!WARNING]
 > Experimental plugin. Vibe-coded, lightly reviewed, and not yet hardened. Keep backups and review every approved action.
 
 ## Why use it?
 
-- **Repo-aware next steps** — combines buffers, diagnostics, git changes, recent edits, ripgrep hits, tree-sitter symbols, and a bounded repo index.
-- **Fast sidebar UX** — `:MH` opens immediately; model-backed suggestions load async with a spinner.
-- **Safe automation boundary** — suggestions are advisory by default; diffs, commands, and agent handoffs require explicit approval.
-- **Model optional** — works with local heuristics only, local Ollama, Ollama Cloud, OpenAI-compatible APIs, OpenRouter, or Anthropic.
-- **Goal steering** — set long-term intent with `:MHGoal`; Master Hand blends it with short-term repo state.
-- **Agent handoff** — approved suggestions can be sent to pi, Codex, tmux, Zellij, a Neovim terminal, or custom argv command.
+| Strength | What it does |
+| --- | --- |
+| **Repo-aware next steps** | Combines buffers, diagnostics, git changes, recent edits, ripgrep hits, tree-sitter symbols, and a bounded repo index. |
+| **Fast sidebar UX** | `:MH` opens immediately; model-backed suggestions load async with a spinner. |
+| **Safe automation boundary** | Suggestions are advisory by default; diffs, commands, and agent handoffs require explicit approval. |
+| **Model optional** | Works with local heuristics only, local Ollama, Ollama Cloud, OpenAI-compatible APIs, OpenRouter, or Anthropic. |
+| **Goal steering** | `:MHGoal` sets long-term intent and blends it with short-term repo state. |
+| **Agent handoff** | Approved suggestions can go to pi, Codex, tmux, Zellij, a Neovim terminal, or custom argv command. |
 
-## Contents
+---
 
-- [Requirements](#requirements)
-- [Installation](#installation)
-- [Quick start](#quick-start)
-- [Configuration recipes](#configuration-recipes)
-- [Commands](#commands)
-- [Suggestion workflow](#suggestion-workflow)
-- [Models](#models)
-- [Agent handoff](#agent-handoff)
-- [Configuration reference](#configuration-reference)
-- [Safety model](#safety-model)
-- [Testing](#testing)
+<details open>
+<summary><strong>🚀 Quick start</strong></summary>
 
-## Requirements
+```vim
+:MH                         " open sidebar; starts async suggestions if empty
+:MHSuggest                  " refresh suggestions
+:MHPlan                     " ask for plan-style suggestions
+:MHGoal Fix login redirect  " set long-term steering goal
+:MHModel                    " show active model config
+:MHModelStatus              " test model connection
+:MHSend 1                   " send suggestion #1 to configured external agent
+:MHSync                     " refresh buffers after external edits
+```
+
+Sidebar keys:
+
+| Key | Action |
+| --- | --- |
+| `a` | Accept/useful feedback; if `agent.enabled`, approve/send selected suggestion |
+| `d` | Dismiss suggestion |
+| `p` | Postpone suggestion |
+| `v` | View details |
+| `r` | Refresh suggestions |
+| `q` | Close sidebar |
+
+By default, `a` records feedback only. With `agent.enabled = true`, `a` sends the selected suggestion to the configured external coding agent and starts short-lived `:checktime` polling so Neovim notices saved edits.
+
+</details>
+
+<details>
+<summary><strong>📦 Requirements</strong></summary>
 
 - Neovim 0.10+
 - `git` for status/diff context
@@ -45,7 +66,10 @@ It is **approval-first** by design: Master Hand does not edit files, run command
   - `ollama` for local `provider = "auto"` / `provider = "ollama"`
   - `pi`, `codex`, `tmux`, or `zellij` for external agent handoff
 
-## Installation
+</details>
+
+<details open>
+<summary><strong>🧩 Installation</strong></summary>
 
 Minimal `lazy.nvim` setup:
 
@@ -77,33 +101,10 @@ require("master-hand").setup({
 })
 ```
 
-## Quick start
+</details>
 
-```vim
-:MH                         " open sidebar; starts async suggestions if empty
-:MHSuggest                  " refresh suggestions
-:MHPlan                     " ask for plan-style suggestions
-:MHGoal Fix login redirect  " set long-term steering goal
-:MHModel                    " show active model config
-:MHModelStatus              " test model connection
-:MHSend 1                   " send suggestion #1 to configured external agent
-:MHSync                     " refresh buffers after external edits
-```
-
-Sidebar keys:
-
-| Key | Action |
-| --- | --- |
-| `a` | Accept/useful feedback; if `agent.enabled`, approve/send selected suggestion |
-| `d` | Dismiss suggestion |
-| `p` | Postpone suggestion |
-| `v` | View details |
-| `r` | Refresh suggestions |
-| `q` | Close sidebar |
-
-By default, `a` records feedback only. With `agent.enabled = true`, `a` sends the selected suggestion to the configured external coding agent and starts short-lived `:checktime` polling so Neovim notices saved edits.
-
-## Configuration recipes
+<details>
+<summary><strong>🎛️ Configuration recipes</strong></summary>
 
 ### Sidebar layout and colors
 
@@ -169,7 +170,10 @@ require("master-hand").setup({
 })
 ```
 
-## Commands
+</details>
+
+<details>
+<summary><strong>⌨️ Commands</strong></summary>
 
 | Command | Alias | Description |
 | --- | --- | --- |
@@ -193,7 +197,10 @@ require("master-hand").setup({
 | `:MasterHandSync` | `:MHSync` | Refresh buffers after external edits |
 | `:MasterHandSearch <query>` | `:MHSearch <query>` | Search repo with ripgrep |
 
-## Suggestion workflow
+</details>
+
+<details>
+<summary><strong>🧠 Suggestion workflow</strong></summary>
 
 Suggestions run in two stages:
 
@@ -211,7 +218,10 @@ Goal steering:
 - Short-term goal comes from recent edits, changed files, diagnostics, and repo state.
 - `:MHGoal <goal>` overrides long-term steering when inferred direction is wrong.
 
-## Models
+</details>
+
+<details>
+<summary><strong>🤖 Models</strong></summary>
 
 With `provider = "auto"`, Master Hand uses local Ollama when available, preferring coder/code/Qwen models. If no model is reachable, local heuristic suggestions still work. Use `provider = "none"` to disable model calls.
 
@@ -236,9 +246,12 @@ Advanced key/value form:
 :MHModel provider=ollama-cloud model=gpt-oss:120b
 ```
 
-`:MHModel` changes runtime config for current Neovim session. Put same config in `setup()` for persistent defaults.
+`:MHModel` changes runtime config for current Neovim session. Put the same config in `setup()` for persistent defaults.
 
-## Agent handoff
+</details>
+
+<details>
+<summary><strong>🛫 Agent handoff</strong></summary>
 
 Agent handoff is disabled by default. Enable only when you want approved suggestions to leave Neovim and go to another coding agent.
 
@@ -295,7 +308,10 @@ require("master-hand").setup({
 
 After handoff, Master Hand runs `:checktime` for a short window so saved external edits reload into Neovim. Use `:MHSync` to refresh manually.
 
-## Configuration reference
+</details>
+
+<details>
+<summary><strong>🧾 Configuration reference</strong></summary>
 
 Defaults live in `lua/master-hand/config.lua`. Common options:
 
@@ -358,7 +374,10 @@ MasterHandApproval MasterHandFiles MasterHandNext MasterHandPending
 MasterHandKeys
 ```
 
-## Safety model
+</details>
+
+<details>
+<summary><strong>🔒 Safety model</strong></summary>
 
 - No automatic edits or command execution.
 - Accepting a suggestion records feedback only unless `agent.enabled = true`.
@@ -368,10 +387,15 @@ MasterHandKeys
 - Pending diffs live in memory, not on disk.
 - Model/provider failures degrade to local heuristic suggestions.
 
-## Testing
+</details>
+
+<details>
+<summary><strong>✅ Testing</strong></summary>
 
 From repo root:
 
 ```sh
 nvim --headless -u NONE +'set rtp+=.' -l tests/run.lua
 ```
+
+</details>
