@@ -116,13 +116,34 @@ function M.close()
   ui.close()
 end
 
+local function refresh_steered_suggestions()
+  state.set_suggestions({})
+  if ui.win and vim.api.nvim_win_is_valid(ui.win) then
+    run_suggest("suggest")
+  else
+    ui.render()
+  end
+end
+
 function M.set_goal(goal)
   state.data.long_term_goal = vim.trim(goal or "")
   state.data.long_term_goal_source = state.data.long_term_goal ~= "" and "user" or "inferred"
   state.data.short_term_goal_source = state.data.short_term_goal_source == "user" and "user" or "inferred"
   save_state()
-  ui.render()
-  vim.notify("Master Hand steering goal set: " .. state.data.long_term_goal)
+  refresh_steered_suggestions()
+  vim.notify("Master Hand long-term direction set: " .. state.data.long_term_goal)
+end
+
+function M.set_next(goal)
+  state.data.short_term_goal = vim.trim(goal or "")
+  state.data.short_term_goal_source = state.data.short_term_goal ~= "" and "user" or "inferred"
+  save_state()
+  refresh_steered_suggestions()
+  if state.data.short_term_goal ~= "" then
+    vim.notify("Master Hand short-term next step set: " .. state.data.short_term_goal)
+  else
+    vim.notify("Master Hand short-term next step reset to inferred")
+  end
 end
 
 function M.plan()

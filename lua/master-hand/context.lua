@@ -133,7 +133,7 @@ end
 
 function M.summary(snap)
   snap = snap or M.snapshot()
-  return string.format("root=%s branch=%s short=%s (%s) long=%s (%s) buffers=%d changed=%d diagnostics=%dE/%dW", snap.root or "?", snap.branch or "?", snap.short_term_goal or snap.goal or "none", snap.short_term_goal_source or snap.goal_source or "inferred", snap.long_term_goal or "none", snap.long_term_goal_source or "inferred", #snap.open_buffers, #snap.changed_files, snap.diagnostics.errors, snap.diagnostics.warnings)
+  return string.format("root=%s branch=%s next_step=%s (%s) direction=%s (%s) buffers=%d changed=%d diagnostics=%dE/%dW", snap.root or "?", snap.branch or "?", snap.short_term_goal or snap.goal or "none", snap.short_term_goal_source or snap.goal_source or "inferred", snap.long_term_goal or "none", snap.long_term_goal_source or "inferred", #snap.open_buffers, #snap.changed_files, snap.diagnostics.errors, snap.diagnostics.warnings)
 end
 
 function M.summary_lines(snap)
@@ -141,8 +141,8 @@ function M.summary_lines(snap)
   return {
     "root: " .. (snap.root or "?"),
     "branch: " .. (snap.branch ~= "" and snap.branch or "?"),
-    "short: " .. (snap.short_term_goal or snap.goal or "none") .. " (" .. (snap.short_term_goal_source or snap.goal_source or "inferred") .. ")",
-    "long: " .. (snap.long_term_goal or "none") .. " (" .. (snap.long_term_goal_source or "inferred") .. ")",
+    "next step (short-term): " .. (snap.short_term_goal or snap.goal or "none") .. " (" .. (snap.short_term_goal_source or snap.goal_source or "inferred") .. ")",
+    "direction (long-term): " .. (snap.long_term_goal or "none") .. " (" .. (snap.long_term_goal_source or "inferred") .. ")",
     string.format("buffers=%d changed=%d diagnostics=%dE/%dW", #snap.open_buffers, #snap.changed_files, snap.diagnostics.errors, snap.diagnostics.warnings),
   }
 end

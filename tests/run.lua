@@ -263,6 +263,13 @@ require("master-hand").set_goal("Ship explicit goal override")
 assert(state.data.long_term_goal == "Ship explicit goal override", "user goal steers long-term intent")
 assert(state.data.long_term_goal_source == "user", "user steering source tracked")
 assert(state.data.short_term_goal and state.data.short_term_goal ~= "", "short-term goal remains available")
+require("master-hand").set_next("Finish explicit next step")
+assert_eq(state.data.short_term_goal, "Finish explicit next step", "user can set short-term next step")
+assert_eq(state.data.short_term_goal_source, "user", "short-term next step source tracked")
+require("master-hand.context").snapshot({ quick = true })
+assert_eq(state.data.short_term_goal, "Finish explicit next step", "snapshot preserves user short-term next step")
+require("master-hand").set_next("")
+assert_eq(state.data.short_term_goal_source, "inferred", ":MHNext without args resets short-term inference")
 
 state.data.root = vim.fn.getcwd()
 state.data.last_context = { root = vim.fn.getcwd(), branch = "test", open_buffers = {}, changed_files = { "lua/master-hand/init.lua" }, diagnostics = { errors = 0, warnings = 0 } }

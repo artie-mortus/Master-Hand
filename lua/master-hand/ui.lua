@@ -109,8 +109,10 @@ local function lines()
   table.insert(out, "")
   if state.data.short_term_goal or state.data.long_term_goal then
     table.insert(out, "Steering")
-    table.insert(out, "  short: " .. (state.data.short_term_goal or state.data.goal or "none") .. " (" .. (state.data.short_term_goal_source or state.data.goal_source or "inferred") .. ")")
-    table.insert(out, "  long:  " .. (state.data.long_term_goal or "none") .. " (" .. (state.data.long_term_goal_source or "inferred") .. ")")
+    table.insert(out, "  Next step (short-term):")
+    table.insert(out, "    " .. (state.data.short_term_goal or state.data.goal or "none") .. " (" .. (state.data.short_term_goal_source or state.data.goal_source or "inferred") .. ")")
+    table.insert(out, "  Direction (long-term):")
+    table.insert(out, "    " .. (state.data.long_term_goal or "none") .. " (" .. (state.data.long_term_goal_source or "inferred") .. ")")
     table.insert(out, "")
   end
   table.insert(out, "Suggestions")

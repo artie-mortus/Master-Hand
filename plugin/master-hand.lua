@@ -26,6 +26,7 @@ local commands = {
   MasterHand = { fn = function() mh.open() end, opts = {}, aliases = { "MH" } },
   MasterHandClose = { fn = function() mh.close() end, opts = {}, aliases = { "MHClose" } },
   MasterHandGoal = { fn = function(opts) mh.set_goal(opts.args) end, opts = { nargs = "+" }, aliases = { "MHGoal" } },
+  MasterHandNext = { fn = function(opts) mh.set_next(opts.args) end, opts = { nargs = "*" }, aliases = { "MHNext", "MHShort" } },
   MasterHandPlan = { fn = function() mh.plan() end, opts = {}, aliases = { "MHPlan" } },
   MasterHandSuggest = { fn = function() mh.suggest() end, opts = {}, aliases = { "MHSuggest" } },
   MasterHandModelSuggest = { fn = function() mh.model_suggest() end, opts = {}, aliases = { "MHModelSuggest" } },

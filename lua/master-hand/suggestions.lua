@@ -19,7 +19,7 @@ end
 -- Cheap local suggestions. These must work even when no model is configured.
 local function heuristic(snap)
   local out = {}
-  if snap.short_term_goal and snap.short_term_goal ~= "" then table.insert(out, item("goal-plan", "Break steering goal into repo-aware steps", "Short-term goal is " .. (snap.short_term_goal_source or "inferred") .. "; long-term steering is " .. (snap.long_term_goal or "unspecified") .. ".", snap.changed_files, 0.82, "Review related search hits for: " .. table.concat({ snap.short_term_goal, snap.long_term_goal or "" }, " "), "advice")) end
+  if snap.short_term_goal and snap.short_term_goal ~= "" then table.insert(out, item("goal-plan", "Use steered next step", "Next step (short-term) is " .. (snap.short_term_goal_source or "inferred") .. "; direction (long-term) is " .. (snap.long_term_goal or "unspecified") .. ".", snap.changed_files, 0.82, "Review related search hits for: " .. table.concat({ snap.short_term_goal, snap.long_term_goal or "" }, " "), "advice")) end
   if snap.related and #snap.related > 0 then
     local files, seen = {}, {}
     for _, hit in ipairs(snap.related) do if not seen[hit.file] then seen[hit.file] = true; table.insert(files, hit.file) end end

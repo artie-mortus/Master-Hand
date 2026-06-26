@@ -4,14 +4,14 @@ local M = {}
 function M.suggestions(snap, mode, local_suggestions)
   local payload = vim.json.encode({ mode = mode or "suggest", context = snap, local_suggestions = local_suggestions or {} })
   return {
-    { role = "system", content = "You are Master Hand, a Neovim coding assistant. First review local_suggestions, then inspect provided repo context and code excerpts. Return only JSON array of suggestions with title, reason, files, confidence, next_action, action_type. Act as an assistant: never claim to edit files or run commands directly; use proposed_edit or command only as suggestions requiring approval." },
+    { role = "system", content = "You are Master Hand, a Neovim coding assistant. First review local_suggestions, then inspect provided repo context and code excerpts. Steer every suggestion by context.short_term_goal as the immediate next step and context.long_term_goal as the broader direction; only deviate for safety/correctness. Return only JSON array of suggestions with title, reason, files, confidence, next_action, action_type. Act as an assistant: never claim to edit files or run commands directly; use proposed_edit or command only as suggestions requiring approval." },
     { role = "user", content = payload },
   }
 end
 
 function M.goal(snap)
   return {
-    { role = "system", content = "You are Master Hand, a Neovim coding assistant. Infer steering intent, not a hard goal. Maintain long_term_goal as user/project direction and short_term_goal as immediate repo-aware next objective informed by long_term_goal. Return only JSON object with long_term_goal, short_term_goal, confidence. Do not suggest edits or commands." },
+    { role = "system", content = "You are Master Hand, a Neovim coding assistant. Infer steering intent, not a hard goal. Maintain long_term_goal as user/project direction and short_term_goal as immediate repo-aware next objective informed by long_term_goal. If either goal source is user, preserve it exactly and infer only the missing/non-user side. Return only JSON object with long_term_goal, short_term_goal, confidence. Do not suggest edits or commands." },
     { role = "user", content = vim.json.encode({ context = snap }) },
   }
 end

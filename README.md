@@ -27,7 +27,7 @@ Think of it as an assistant that sits beside your editor and says: "here is like
 | **Intentional model use** | Built for times when you want AI help, not background autonomy. You open it, ask, review, then approve. |
 | **Safe automation boundary** | Suggestions are advisory by default; diffs, commands, and agent handoffs require explicit approval. |
 | **Model optional** | Works with local heuristics only, local Ollama, Ollama Cloud, OpenAI-compatible APIs, OpenRouter, Anthropic, Pi, or login-backed CLI subscriptions (Codex/Claude/Gemini). |
-| **Goal steering** | `:MHGoal` tells the helper what you are trying to do and blends it with short-term repo state. |
+| **Goal steering** | `:MHGoal` sets long-term direction; `:MHNext` can pin the short-term next step, or Master Hand infers it from repo state. |
 | **Agent handoff** | Approved suggestions can go to pi, Codex, tmux, Zellij, a Neovim terminal, or custom argv command. |
 
 ---
@@ -39,7 +39,8 @@ Think of it as an assistant that sits beside your editor and says: "here is like
 :MH                         " open sidebar; starts async suggestions if empty
 :MHSuggest                  " refresh suggestions
 :MHPlan                     " ask for plan-style suggestions
-:MHGoal Fix login redirect  " set long-term steering goal
+:MHGoal Fix login redirect  " set long-term direction
+:MHNext Update auth docs      " optionally pin short-term next step
 :MHModel                    " show active model config
 :MHModelStatus              " test model connection
 :MHSend 1                   " send suggestion #1 to configured external agent
@@ -220,7 +221,8 @@ require("master-hand").setup({
 | --- | --- | --- |
 | `:MasterHand` | `:MH` | Open sidebar; async-load suggestions if empty |
 | `:MasterHandClose` | `:MHClose` | Close sidebar |
-| `:MasterHandGoal <goal>` | `:MHGoal <goal>` | Set long-term steering goal |
+| `:MasterHandGoal <goal>` | `:MHGoal <goal>` | Set long-term direction |
+| `:MasterHandNext [goal]` | `:MHNext [goal]`, `:MHShort [goal]` | Set short-term next step; omit args to return to inference |
 | `:MasterHandPlan` | `:MHPlan` | Generate plan-style suggestions |
 | `:MasterHandSuggest` | `:MHSuggest` | Refresh suggestions asynchronously |
 | `:MasterHandModelSuggest` | `:MHModelSuggest` | Alias for `:MHSuggest` |
@@ -258,9 +260,11 @@ Proactivity modes:
 
 Goal steering:
 
-- Long-term goal captures user/project direction.
-- Short-term goal comes from recent edits, changed files, diagnostics, and repo state.
-- `:MHGoal <goal>` overrides long-term steering when inferred direction is wrong.
+- **Direction (long-term)** — broad user/project intent, usually set by `:MHGoal`. Example: “ship subscription login support.”
+- **Next step (short-term)** — immediate task, either inferred from open buffers/recent edits/changed files/diagnostics/model review or pinned with `:MHNext`. Example: “update provider docs and tests.”
+- `:MHGoal <goal>` changes long-term direction only.
+- `:MHNext <goal>` pins short-term next step. Run `:MHNext` with no args to return short-term next step to inference.
+- Changing either goal clears stale suggestions; next `:MH`/`:MHSuggest` (or the open sidebar) regenerates suggestions steered by the new goals.
 
 </details>
 
