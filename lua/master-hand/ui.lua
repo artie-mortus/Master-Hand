@@ -4,7 +4,87 @@ local config = require("master-hand.config")
 local context = require("master-hand.context")
 local actions = require("master-hand.actions")
 
-local M = { win = nil, buf = nil, augroup = nil }
+local M = { win = nil, buf = nil, augroup = nil, ns = vim.api.nvim_create_namespace("master-hand-sidebar") }
+
+local default_highlights = {
+  MasterHandTitle = { link = "Title" },
+  MasterHandRule = { link = "Comment" },
+  MasterHandSection = { link = "Statement" },
+  MasterHandContext = { link = "Comment" },
+  MasterHandModel = { link = "Identifier" },
+  MasterHandLoading = { link = "Special" },
+  MasterHandSuggestionIndex = { link = "Number" },
+  MasterHandSuggestionTitle = { link = "Function" },
+  MasterHandReason = { link = "Normal" },
+  MasterHandMeta = { link = "Type" },
+  MasterHandApproval = { link = "WarningMsg" },
+  MasterHandFiles = { link = "Directory" },
+  MasterHandNext = { link = "String" },
+  MasterHandPending = { link = "Todo" },
+  MasterHandKeys = { link = "Question" },
+}
+
+local function setup_highlights()
+  local custom = ((config.get().ui or {}).highlights or {})
+  local names = vim.tbl_keys(default_highlights)
+  for name in pairs(custom) do
+    if vim.startswith(name, "MasterHand") then table.insert(names, name) end
+  end
+  for _, name in ipairs(names) do
+    local user_spec = custom[name]
+    if user_spec ~= false then
+      local spec = vim.deepcopy(user_spec ~= nil and user_spec or default_highlights[name] or {})
+      if user_spec == nil then spec.default = true end
+      pcall(vim.api.nvim_set_hl, 0, name, spec)
+    end
+  end
+end
+
+local function line_hl(buf, lnum, group, start_col, end_col)
+  pcall(vim.api.nvim_buf_add_highlight, buf, M.ns, group, lnum, start_col or 0, end_col or -1)
+end
+
+local function apply_highlights(buf)
+  setup_highlights()
+  vim.api.nvim_buf_clear_namespace(buf, M.ns, 0, -1)
+  local buf_lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  for i, line in ipairs(buf_lines) do
+    local lnum = i - 1
+    if i == 1 then
+      line_hl(buf, lnum, "MasterHandTitle")
+    elseif line:match("^─+$") then
+      line_hl(buf, lnum, "MasterHandRule")
+    elseif line == "Steering" or line == "Suggestions" or line == "Pending approvals" then
+      line_hl(buf, lnum, "MasterHandSection")
+    elseif line:match("^model:") then
+      line_hl(buf, lnum, "MasterHandModel")
+    elseif line:match("^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]") then
+      line_hl(buf, lnum, "MasterHandLoading")
+    elseif line:match("^%d+%.") then
+      local prefix = line:match("^%d+%.") or ""
+      line_hl(buf, lnum, "MasterHandSuggestionIndex", 0, #prefix)
+      line_hl(buf, lnum, "MasterHandSuggestionTitle", #prefix + 1, -1)
+    elseif line:match("^   confidence:") then
+      line_hl(buf, lnum, "MasterHandMeta")
+    elseif line:match("^   approval required") then
+      line_hl(buf, lnum, "MasterHandApproval")
+    elseif line:match("^   files:") then
+      line_hl(buf, lnum, "MasterHandFiles")
+    elseif line:match("^   next:") then
+      line_hl(buf, lnum, "MasterHandNext")
+    elseif line:match("^%- .+%[.+%]") then
+      line_hl(buf, lnum, "MasterHandPending")
+    elseif line:match("^Keys:") then
+      line_hl(buf, lnum, "MasterHandKeys")
+    elseif line:match("^root:") or line:match("^branch:") or line:match("^short:") or line:match("^long:") or line:match("^buffers=") or line:match("^No context") then
+      line_hl(buf, lnum, "MasterHandContext")
+    elseif line:match("^  short:") or line:match("^  long:") then
+      line_hl(buf, lnum, "MasterHandContext")
+    elseif line:match("^   .+") then
+      line_hl(buf, lnum, "MasterHandReason")
+    end
+  end
+end
 
 local function one_line(value)
   local text = tostring(value or "")
@@ -70,6 +150,7 @@ function M.render()
   vim.bo[M.buf].modifiable = true
   vim.api.nvim_buf_set_lines(M.buf, 0, -1, false, lines())
   vim.bo[M.buf].modifiable = false
+  apply_highlights(M.buf)
 end
 
 function M.sidebar_width()

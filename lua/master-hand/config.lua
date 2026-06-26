@@ -76,6 +76,7 @@ M.defaults = {
     max_width_ratio = 0.45,
     side = "right",
     show_diff_preview = true,
+    highlights = {}, -- override MasterHand* sidebar highlight groups from setup()
   },
 }
 

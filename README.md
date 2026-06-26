@@ -4,34 +4,48 @@
   <img src=".github/social-preview.png" alt="Master Hand project artwork" width="640">
 </p>
 
-Master Hand is an experimental Neovim assistant that reads repo/editor context, infers your current coding goal, and suggests safe next steps. It never edits files or runs commands unless you approve an explicit pending action.
+Master Hand is an experimental Neovim assistant that watches repo/editor context, infers long-term steering plus short-term next work, and suggests safe next steps. Local heuristics run first; model calls add optional review. It never edits files or runs commands unless you approve an explicit pending action.
 
 > [!WARNING]
 > **This project is vibe-coded and lightly reviewed. Treat it as experimental until hardened.**
 
 ## Features
 
-- **Repo-aware suggestions** — uses open buffers, diagnostics, git changes, ripgrep results, tree-sitter symbols, and a lightweight repo index.
+- **Repo-aware suggestions** — uses open buffers, diagnostics, git changes, recent edits, ripgrep hits, tree-sitter symbols, and a bounded repo index.
 - **Model-backed review** — combines local heuristics with Ollama, Ollama Cloud, OpenAI-compatible APIs, OpenRouter, or Anthropic.
+- **Non-blocking sidebar** — `:MH` opens immediately; model suggestions load async with a spinner.
 - **In-editor model switching** — change providers/models at runtime with `:MHModel`.
-- **Approval-first safety** — suggestions never edit files or run commands unless you approve a pending action.
-- **Agent handoff** — approved suggestions can be sent to pi, Codex, tmux, Zellij, or a custom argv command, then Neovim buffers refresh with `:checktime`.
+- **Approval-first safety** — model diffs, commands, and agent handoffs wait behind pending actions or explicit suggestion approval.
+- **Agent handoff** — approved suggestions can be sent to pi, Codex, tmux, Zellij, a Neovim terminal, or a custom argv command, then buffers refresh with `:checktime`.
+
+## Requirements
+
+- Neovim 0.10+.
+- `git` for repo status/diff context.
+- Optional: `rg` for repo search, tree-sitter parsers for symbols, `curl` for remote model providers, `ollama` for local auto-provider, `pi`/`codex`/`tmux`/`zellij` for agent handoff.
 
 ## Installation
 
-Example `lazy.nvim` config:
+Minimal safe `lazy.nvim` config:
 
 ```lua
 {
   "artie-mortus/Master-Hand",
   name = "master-hand",
   config = function()
-    require("master-hand").setup({
-      proactivity = "advisory",
-      model = { provider = "auto" },
-    })
+    require("master-hand").setup()
   end,
 }
+```
+
+Default `proactivity = "passive"`: no typing-triggered model work. Use advisory mode if you want debounced refreshes after edits/diagnostics:
+
+```lua
+require("master-hand").setup({
+  proactivity = "advisory",
+  suggestion_frequency_ms = 5000,
+  model = { provider = "auto" },
+})
 ```
 
 ## Quick start
@@ -59,6 +73,13 @@ Inside sidebar:
 | `q` | Close |
 
 By default, `a` records feedback only. With `agent.enabled = true`, `a` approves the selected suggestion, sends it to your configured external coding agent, and polls `:checktime` so Neovim sees saved edits. Local diffs and commands still go through pending actions plus `:MHApprove`.
+
+## Proactivity modes
+
+- `passive` — default. Only explicit commands such as `:MH`, `:MHSuggest`, or `:MHPlan` generate suggestions.
+- `advisory`, `proactive`, `high_initiative` — currently share same safe behavior: editor events debounce suggestion refreshes, but still never edit files or run commands automatically.
+
+Editor autocmds track edits/diagnostics and start suggestion refreshes only when proactivity is not `passive`.
 
 ## How suggestions work
 
@@ -121,6 +142,15 @@ require("master-hand").setup({
 })
 ```
 
+Adapters:
+
+- `auto` — tmux target if available, else Zellij pane if inside Zellij, else Neovim terminal split.
+- `pi` — runs `pi <prompt>` or `executable <prompt>`.
+- `codex` — runs `codex exec <prompt>`.
+- `tmux` — sends prompt to `agent.target` or `MASTER_HAND_TMUX_TARGET`.
+- `zellij` — starts a pane named `Master Hand Agent`.
+- `terminal` — opens a Neovim terminal split.
+
 Custom command template:
 
 ```lua
@@ -131,6 +161,8 @@ require("master-hand").setup({
   },
 })
 ```
+
+Template variables: `{prompt}`, `{root}`, `{prompt_q}`, `{root_q}`.
 
 Tmux target pane/window:
 
@@ -152,7 +184,7 @@ require("master-hand").setup({
 })
 ```
 
-With `adapter = "auto"`, Master Hand uses a configured tmux target, Zellij pane, or a Neovim terminal split. After handoff, it runs `:checktime` for a short window so saved external edits reload into Neovim. Use `:MHSync` to refresh manually.
+After handoff, Master Hand runs `:checktime` for a short window so saved external edits reload into Neovim. Use `:MHSync` to refresh manually.
 
 ### Config examples
 
@@ -244,6 +276,51 @@ require("master-hand").setup({
 | `:MasterHandSync` | `:MHSync` | Refresh buffers after external edits |
 | `:MasterHandSearch <query>` | `:MHSearch <query>` | Search repo with ripgrep |
 
+## Configuration reference
+
+Defaults live in `lua/master-hand/config.lua`. Common options:
+
+```lua
+require("master-hand").setup({
+  proactivity = "passive", -- passive | advisory | proactive | high_initiative
+  suggestion_frequency_ms = 5000,
+  ignore = { ".git/", "node_modules/", "dist/", "build/", ".env", ".env.*" },
+  model = {
+    provider = "auto", -- none | auto | openai_compatible | openrouter | ollama | anthropic
+    timeout_ms = 60000,
+    temperature = 0.2,
+    max_tokens = 1200,
+  },
+  context = {
+    max_files = 80,
+    max_diff_bytes = 24000,
+    max_search_results = 40,
+    include_related_files = true,
+    include_symbols = true,
+    include_index = true,
+  },
+  commands = {
+    allowlist = { "git", "make", "npm", "pnpm", "yarn", "cargo", "go", "pytest", "python", "lua", "nvim" },
+    blocklist = { "rm", "sudo", "git reset", "git clean" },
+    timeout_ms = 10000,
+  },
+  storage = { enabled = true },
+  ui = {
+    width = 46,
+    max_width_ratio = 0.45,
+    side = "right",
+    highlights = {
+      MasterHandTitle = { fg = "#89b4fa", bold = true },
+      MasterHandSection = { fg = "#cba6f7", bold = true },
+      MasterHandApproval = { fg = "#f38ba8", bold = true },
+      MasterHandNext = { fg = "#a6e3a1" },
+    },
+  },
+})
+```
+
+Long-term goal and feedback persist to `stdpath("state") .. "/master-hand/state.json"` when storage is enabled.
+
 ## Sidebar config
 
 ```lua
@@ -252,11 +329,19 @@ require("master-hand").setup({
     width = 46,
     max_width_ratio = 0.45,
     side = "right",
+    highlights = {
+      MasterHandTitle = { fg = "#89b4fa", bold = true },
+      MasterHandSection = { link = "Statement" },
+      MasterHandSuggestionTitle = { fg = "#fab387" },
+      MasterHandKeys = { link = "Question" },
+    },
   },
 })
 ```
 
 The sidebar uses `winfixwidth` and reapplies width on `VimResized`, so i3/fullscreen terminal resizes should not stretch it across the editor.
+
+Configurable sidebar highlight groups: `MasterHandTitle`, `MasterHandRule`, `MasterHandSection`, `MasterHandContext`, `MasterHandModel`, `MasterHandLoading`, `MasterHandSuggestionIndex`, `MasterHandSuggestionTitle`, `MasterHandReason`, `MasterHandMeta`, `MasterHandApproval`, `MasterHandFiles`, `MasterHandNext`, `MasterHandPending`, `MasterHandKeys`.
 
 ## Safety model
 

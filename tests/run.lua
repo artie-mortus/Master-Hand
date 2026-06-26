@@ -60,6 +60,11 @@ assert_eq(actions.get(action.id), nil, "approved actions stop being pending")
 assert_eq(#actions.list(), 0)
 state.set_suggestions({ schema.suggestion({ title = "Multiline", reason = "line one\nline two", next_action = "retry\nnow" }) })
 ui.render()
+config.setup({ storage = { enabled = false }, ui = { highlights = { MasterHandTitle = { fg = "#123456", bold = true } } } })
+ui.render()
+local title_hl = vim.api.nvim_get_hl(0, { name = "MasterHandTitle", link = false })
+assert_eq(title_hl.fg, tonumber("123456", 16), "sidebar highlight fg configurable")
+assert_eq(title_hl.bold, true, "sidebar highlight style configurable")
 local old_columns = vim.o.columns
 vim.o.columns = 120
 config.setup({ storage = { enabled = false }, ui = { width = 46, max_width_ratio = 0.45 } })
