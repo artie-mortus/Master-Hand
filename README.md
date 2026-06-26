@@ -5,12 +5,18 @@
 </p>
 
 <p align="center">
-  <strong>Safe, repo-aware AI assistance inside Neovim.</strong><br>
-  Local heuristics first. Optional models second. Explicit approval always.
+  <strong>Models as helpers, not autopilot.</strong><br>
+  Ask for context-aware suggestions, review the help, then approve what should happen.
 </p>
 
 > [!WARNING]
 > Experimental plugin. Vibe-coded, lightly reviewed, and not yet hardened. Keep backups and review every approved action.
+
+## What Master Hand is
+
+Master Hand is not an autonomous coding agent by default. It is a **deliberate helper layer for model use**: open it when you want a second set of eyes, give it a goal, let local context and optional models suggest next steps, then choose what to do.
+
+Think of it as an assistant that sits beside your editor and says: "here is likely useful help; want to act on it?" It keeps you in control.
 
 ## Why use it?
 
@@ -18,9 +24,10 @@
 | --- | --- |
 | **Repo-aware next steps** | Combines buffers, diagnostics, git changes, recent edits, ripgrep hits, tree-sitter symbols, and a bounded repo index. |
 | **Fast sidebar UX** | `:MH` opens immediately; model-backed suggestions load async with a spinner. |
+| **Intentional model use** | Built for times when you want AI help, not background autonomy. You open it, ask, review, then approve. |
 | **Safe automation boundary** | Suggestions are advisory by default; diffs, commands, and agent handoffs require explicit approval. |
 | **Model optional** | Works with local heuristics only, local Ollama, Ollama Cloud, OpenAI-compatible APIs, OpenRouter, or Anthropic. |
-| **Goal steering** | `:MHGoal` sets long-term intent and blends it with short-term repo state. |
+| **Goal steering** | `:MHGoal` tells the helper what you are trying to do and blends it with short-term repo state. |
 | **Agent handoff** | Approved suggestions can go to pi, Codex, tmux, Zellij, a Neovim terminal, or custom argv command. |
 
 ---
@@ -51,6 +58,8 @@ Sidebar keys:
 | `q` | Close sidebar |
 
 By default, `a` records feedback only. With `agent.enabled = true`, `a` sends the selected suggestion to the configured external coding agent and starts short-lived `:checktime` polling so Neovim notices saved edits.
+
+Intentional flow: **open → ask/goal → read suggestions → approve only useful help**.
 
 </details>
 
@@ -201,6 +210,8 @@ require("master-hand").setup({
 
 <details>
 <summary><strong>🧠 Suggestion workflow</strong></summary>
+
+Suggestions are meant to support intentional model use, not replace judgment. You decide when to ask, what context to provide through goals, and which suggestions deserve action.
 
 Suggestions run in two stages:
 
