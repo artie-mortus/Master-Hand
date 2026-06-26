@@ -231,4 +231,8 @@ assert(captured.argv[3]:match("Wire approved suggestions to agent"), "agent rece
 assert_eq(state.data.feedback[state.data.suggestions[1].id], "accepted", "agent handoff records accepted feedback")
 vim.system = original_system
 
+require("master-hand").setup({ proactivity = "passive", storage = { enabled = false }, agent = { enabled = true, adapter = "terminal", executable = "definitely-missing-master-hand-exe-xyz", auto_checktime = false } })
+local sent, send_err = agent.dispatch(schema.suggestion({ title = "Missing terminal agent" }))
+assert(not sent and send_err:match("agent executable not found"), "missing terminal agent returns clean error")
+
 print("master-hand tests ok")

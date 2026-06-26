@@ -152,11 +152,14 @@ function M.dispatch(suggestion, cb)
   if not argv then return nil, err end
 
   if use_neovim_terminal(opts) then
-    vim.cmd(opts.terminal_cmd or "botright split")
-    vim.fn.termopen(argv, { cwd = root, on_exit = vim.schedule_wrap(function()
+    if vim.fn.executable(argv[1]) ~= 1 then return nil, "agent executable not found: " .. tostring(argv[1]) end
+    local ok, err = pcall(vim.cmd, opts.terminal_cmd or "botright split")
+    if not ok then return nil, err end
+    ok, err = pcall(vim.fn.termopen, argv, { cwd = root, on_exit = vim.schedule_wrap(function()
       M.sync()
       if cb then cb(true) end
     end) })
+    if not ok then return nil, err end
     M.start_sync_poll()
     return { argv = argv, prompt = prompt }
   end
