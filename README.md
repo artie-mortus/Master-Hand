@@ -12,6 +12,15 @@
 > [!WARNING]
 > Experimental plugin. Vibe-coded, lightly reviewed, and not yet hardened. Keep backups and review every approved action.
 
+## Quick Install
+
+```lua
+-- lazy.nvim
+{ "artie-mortus/Master-Hand", name = "master-hand", cmd = "MH", opts = {} }
+```
+
+Then `:MH` to open.
+
 ## What Master Hand is
 
 Master Hand is not an autonomous coding agent by default. It is a **deliberate helper layer for model use**: open it when you want a second set of eyes, give it a goal, let local context and optional models suggest next steps, then choose what to do.
@@ -82,17 +91,52 @@ Intentional flow: **open → ask/goal → read suggestions → approve only usef
 <details open>
 <summary><strong>🧩 Installation</strong></summary>
 
-Minimal `lazy.nvim` setup:
+Lazy.nvim (copy-paste ready):
 
 ```lua
 {
   "artie-mortus/Master-Hand",
   name = "master-hand",
+  cmd = { "MH", "MasterHand", "MHSuggest", "MHPlan" },
   config = function()
     require("master-hand").setup()
   end,
 }
 ```
+
+With options (passive mode, no auto-suggestions):
+
+```lua
+{
+  "artie-mortus/Master-Hand",
+  name = "master-hand",
+  cmd = { "MH", "MasterHand", "MHSuggest", "MHPlan" },
+  opts = {
+    proactivity = "passive",
+  },
+}
+```
+
+Packer.nvim:
+
+```lua
+use {
+  "artie-mortus/Master-Hand",
+  as = "master-hand",
+  cmd = { "MH", "MasterHand" },
+  config = function()
+    require("master-hand").setup()
+  end,
+}
+```
+
+vim-plug:
+
+```vim
+Plug 'artie-mortus/Master-Hand', { 'on': ['MH', 'MasterHand'] }
+```
+
+After install, run `:MH` to open.
 
 Default mode is intentionally quiet:
 
