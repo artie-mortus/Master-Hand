@@ -15,11 +15,27 @@
 ## Quick Install
 
 ```lua
--- lazy.nvim
+-- lazy.nvim - minimal (passive mode, no agent)
 { "artie-mortus/Master-Hand", name = "master-hand", cmd = "MH", opts = {} }
+
+-- lazy.nvim - with agent handoff to pi/Codex/terminal
+{
+  "artie-mortus/Master-Hand",
+  name = "master-hand",
+  cmd = "MH",
+  keys = { { "<leader>mh", "<cmd>MH<cr>", desc = "Master Hand" } },
+  opts = {
+    proactivity = "passive",
+    model = { provider = "auto" },  -- or "none", "openai", "ollama", etc
+    agent = {
+      enabled = true,
+      adapter = "auto",  -- "pi", "codex", "tmux", "zellij", "terminal"
+    },
+  },
+}
 ```
 
-Then `:MH` to open.
+Then `:MH` to open, or press `<leader>mh`.
 
 ## What Master Hand is
 
