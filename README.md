@@ -26,7 +26,7 @@
   keys = { { "<leader>mh", "<cmd>MH<cr>", desc = "Master Hand" } },
   opts = {
     proactivity = "passive",
-    model = { provider = "auto" },  -- or "none", "openai", "ollama", etc
+    model = { provider = "auto" },  -- or cloud-ranked `ranked = { ... }`, "none", "ollama", etc
     agent = {
       enabled = true,
       adapter = "auto",  -- "pi", "codex", "tmux", "zellij", "terminal"
@@ -215,6 +215,35 @@ require("master-hand").setup({
 })
 ```
 
+### Cloud-ranked local/cloud routing
+
+Use a cheap cloud model as a router, then run the chosen model. This spends a tiny cloud call to avoid sending every request to the highest-tier model.
+
+```lua
+require("master-hand").setup({
+  model = {
+    selection = "auto",
+    cloud_policy = "fallback", -- router sees local candidates first
+    ranking_model = {
+      provider = "openrouter",
+      name = "openai/gpt-4.1-mini",
+      api_key_env = "OPENROUTER_API_KEY",
+    },
+    ranked = {
+      { provider = "ollama", name = "qwen3-coder:latest", rank = 70, is_local = true },
+      { provider = "ollama-cloud", name = "gpt-oss:120b", rank = 90 },
+      { provider = "openrouter", name = "anthropic/claude-3.5-sonnet", rank = 95, api_key_env = "OPENROUTER_API_KEY" },
+    },
+  },
+})
+```
+
+Force one model and skip routing:
+
+```vim
+:MHModel fixed ollama qwen3-coder:latest
+```
+
 ### Account/subscription login (no API key)
 
 Master Hand can use logged-in CLI tools instead of provider API keys:
@@ -333,7 +362,19 @@ Goal steering:
 
 With `provider = "auto"`, Master Hand uses local Ollama when available, preferring coder/code/Qwen models. If no model is reachable, local heuristic suggestions still work. Use `provider = "none"` to disable model calls.
 
-Ranked model routing now uses a cloud model as the router. Master Hand sends a tiny candidate-selection prompt to `ranking_model` (or the highest-ranked cloud candidate), then runs the chosen local or cloud model. Default `cloud_policy = "fallback"` lists local candidates first so the cloud router can conserve usage; `cloud_policy = "best"` lists everything by rank. Set `selection = "fixed"` for one singular model and to skip cloud ranking.
+Ranked model routing uses a cloud model as the router. Master Hand sends a tiny candidate-selection prompt to `ranking_model` (or the highest-ranked cloud candidate), then runs the chosen local or cloud model. This lets a cheap cloud model decide when a higher-tier model is worth using.
+
+Routing knobs:
+
+| Option | Meaning |
+| --- | --- |
+| `selection = "auto"` | Enable cloud-ranked routing when `ranked` candidates exist. |
+| `selection = "fixed"` | Use one configured model; skip routing and cloud ranking. |
+| `cloud_policy = "fallback"` | Sort local candidates before cloud candidates before asking the router. Default; usage-friendly. |
+| `cloud_policy = "best"` | Sort all candidates by `rank` before asking the router. Stronger-model friendly. |
+| `ranking_model` | Cloud model used only for candidate choice; defaults to highest-ranked cloud candidate. |
+| `ranking_max_tokens` | Token cap for the router response; default `24`. |
+| `ranked` / `candidates` | Ordered candidate list. Each entry accepts normal model fields plus `rank`, `is_local`, or `cloud`. |
 
 ```lua
 require("master-hand").setup({
