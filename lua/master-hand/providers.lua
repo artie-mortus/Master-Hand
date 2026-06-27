@@ -275,27 +275,37 @@ local function anthropic_async(model, messages, cb)
   end)
 end
 
+local sync_handlers = {
+  auto = ollama,
+  openai_compatible = openai_compatible,
+  openrouter = openrouter,
+  ollama = ollama,
+  anthropic = anthropic,
+}
+
+local async_handlers = {
+  auto = ollama_async,
+  openai_compatible = openai_compatible_async,
+  openrouter = openrouter_async,
+  ollama = ollama_async,
+  anthropic = anthropic_async,
+}
+
 function M.complete(messages, opts)
   local model = vim.tbl_deep_extend("force", config.get().model, opts or {})
   if model.provider == "none" then return nil, "model provider disabled" end
-  if model.provider == "auto" then return ollama(model, messages) end
-  if model.provider == "openai_compatible" then return openai_compatible(model, messages) end
-  if model.provider == "openrouter" then return openrouter(model, messages) end
-  if model.provider == "ollama" then return ollama(model, messages) end
-  if model.provider == "anthropic" then return anthropic(model, messages) end
-  if model.provider == "codex" or model.provider == "claude" or model.provider == "gemini" or model.provider == "pi" or model.provider == "cli" then return account_cli(model, messages) end
+  local handler = sync_handlers[model.provider]
+  if handler then return handler(model, messages) end
+  if auth.is_account_provider(model.provider) then return account_cli(model, messages) end
   return nil, "provider not implemented: " .. tostring(model.provider)
 end
 
 function M.complete_async(messages, opts, cb)
   local model = vim.tbl_deep_extend("force", config.get().model, opts or {})
   if model.provider == "none" then cb(nil, "model provider disabled"); return end
-  if model.provider == "auto" then ollama_async(model, messages, cb); return end
-  if model.provider == "openai_compatible" then openai_compatible_async(model, messages, cb); return end
-  if model.provider == "openrouter" then openrouter_async(model, messages, cb); return end
-  if model.provider == "ollama" then ollama_async(model, messages, cb); return end
-  if model.provider == "anthropic" then anthropic_async(model, messages, cb); return end
-  if model.provider == "codex" or model.provider == "claude" or model.provider == "gemini" or model.provider == "pi" or model.provider == "cli" then account_cli_async(model, messages, cb); return end
+  local handler = async_handlers[model.provider]
+  if handler then handler(model, messages, cb); return end
+  if auth.is_account_provider(model.provider) then account_cli_async(model, messages, cb); return end
   cb(nil, "provider not implemented: " .. tostring(model.provider))
 end
 

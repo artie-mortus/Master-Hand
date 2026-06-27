@@ -57,7 +57,7 @@ local function start_loading(message)
   loading_timer = vim.loop.new_timer()
   loading_timer:start(80, 80, vim.schedule_wrap(function()
     state.data.loading_frame = (state.data.loading_frame % 10) + 1
-    if ui.win and vim.api.nvim_win_is_valid(ui.win) then ui.render() end
+    if ui.is_open() then ui.render() end
   end))
   return id
 end
@@ -65,9 +65,9 @@ end
 local function run_suggest(mode)
   local id = start_loading(mode == "plan" and "Loading model plan..." or "Loading model suggestions...")
   suggestions.generate_async({ mode = mode or "suggest" }, function()
-    if stop_loading(id) and ui.win and vim.api.nvim_win_is_valid(ui.win) then ui.render() end
+    if stop_loading(id) and ui.is_open() then ui.render() end
   end)
-  if ui.win and vim.api.nvim_win_is_valid(ui.win) then ui.render() end
+  if ui.is_open() then ui.render() end
 end
 
 local function debounce_suggest()
@@ -118,7 +118,7 @@ end
 
 local function refresh_steered_suggestions()
   state.set_suggestions({})
-  if ui.win and vim.api.nvim_win_is_valid(ui.win) then
+  if ui.is_open() then
     run_suggest("suggest")
   else
     ui.render()
@@ -221,7 +221,7 @@ local function apply_model_defaults(update)
   else
     update.endpoint = vim.NIL
     update.api_key_env = vim.NIL
-    if update.provider == "codex" or update.provider == "claude" or update.provider == "gemini" or update.provider == "pi" or update.provider == "cli" then update.api_key = vim.NIL end
+    if auth.is_account_provider(update.provider) then update.api_key = vim.NIL end
   end
   if update.provider == "auto" or update.provider == "none" or update.provider == "codex" or update.provider == "claude" or update.provider == "gemini" or update.provider == "pi" then update.name = vim.NIL end
   return update
@@ -401,14 +401,8 @@ function M.sync()
   vim.notify("Master Hand checked external file changes")
 end
 
-local function suggestion_by_index(index)
-  index = tonumber(index)
-  if not index then return nil end
-  return state.data.suggestions[index]
-end
-
 function M.approve_suggestion(index)
-  local suggestion = suggestion_by_index(index)
+  local suggestion = state.suggestion(index)
   if not suggestion then
     suggestion = ui.suggestion_under_cursor()
   end
@@ -429,11 +423,7 @@ function M.approve_suggestion(index)
 end
 
 function M.accept_suggestion()
-  if config.get().agent.enabled then
-    M.approve_suggestion()
-  else
-    M.feedback("accepted")
-  end
+  M.approve_suggestion()
 end
 
 function M.prepare_diff(request)

@@ -45,6 +45,12 @@ function M.set_suggestions(items)
   M.data.suggestions = items or {}
 end
 
+function M.suggestion(index)
+  index = tonumber(index)
+  if not index then return nil end
+  return M.data.suggestions[index]
+end
+
 function M.feedback(id, action)
   M.data.feedback[id] = action
   if action == "dismissed" then

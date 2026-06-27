@@ -62,7 +62,7 @@ M.defaults = {
     timeout_ms = 10000,
   },
   agent = {
-    enabled = false,
+    enabled = true,
     adapter = "auto", -- auto | pi | codex | tmux | zellij | terminal
     executable = nil, -- defaults to pi, or codex when adapter/executable says codex
     command = nil, -- optional argv template; supports {prompt}, {root}, {prompt_q}, {root_q}

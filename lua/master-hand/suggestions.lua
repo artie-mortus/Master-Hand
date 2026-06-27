@@ -109,6 +109,18 @@ local function infer_model_goal_async(snap, opts, cb)
   end)
 end
 
+local function parse_provider_suggestions(content, err, model)
+  if not content then
+    if model.provider == "auto" then return {}, err end
+    return { item("provider-error", "Model provider failed", err, {}, 0.3, "Check model config or continue with heuristic suggestions.", "advice") }, err
+  end
+  local ok, decoded = pcall(vim.json.decode, content)
+  if not ok then
+    return { item("provider-parse-error", "Model suggestions malformed", "Provider did not return JSON array.", {}, 0.3, "Retry or adjust provider prompt/model.", "advice") }, "Provider did not return JSON array"
+  end
+  return schema.list(decoded), nil
+end
+
 -- Optional model suggestions. Auto is opportunistic; explicit providers surface failures.
 local function provider_items(snap, mode, local_suggestions, opts)
   local model = config.get().model or {}
@@ -118,13 +130,8 @@ local function provider_items(snap, mode, local_suggestions, opts)
   snap = vim.deepcopy(snap)
   snap.code = code_context(snap)
   local content, err = providers.complete(prompts.suggestions(snap, mode, local_suggestions))
-  if not content then
-    if model.provider == "auto" then return {} end
-    return { item("provider-error", "Model provider failed", err, {}, 0.3, "Check model config or continue with heuristic suggestions.", "advice") }
-  end
-  local ok, decoded = pcall(vim.json.decode, content)
-  if not ok then return { item("provider-parse-error", "Model suggestions malformed", "Provider did not return JSON array.", {}, 0.3, "Retry or adjust provider prompt/model.", "advice") } end
-  return schema.list(decoded)
+  local items = parse_provider_suggestions(content, err, model)
+  return items
 end
 
 local function set_filtered(items)
@@ -170,21 +177,9 @@ function M.generate_async(opts, cb)
       request.code = code_context(request)
       providers.complete_async(prompts.suggestions(request, opts.mode or "suggest", refined_local_suggestions), nil, function(content, err)
         local out = vim.deepcopy(refined_local_suggestions)
-        if not content then
-          if model.provider ~= "auto" then
-            table.insert(out, item("provider-error", "Model provider failed", err, {}, 0.3, "Check model config or continue with heuristic suggestions.", "advice"))
-          end
-          cb(set_filtered(out), err)
-          return
-        end
-        local ok, decoded = pcall(vim.json.decode, content)
-        if ok then
-          vim.list_extend(out, schema.list(decoded))
-          cb(set_filtered(out))
-        else
-          table.insert(out, item("provider-parse-error", "Model suggestions malformed", "Provider did not return JSON array.", {}, 0.3, "Retry or adjust provider prompt/model.", "advice"))
-          cb(set_filtered(out), "Provider did not return JSON array")
-        end
+        local parsed, parse_err = parse_provider_suggestions(content, err, model)
+        vim.list_extend(out, parsed)
+        cb(set_filtered(out), parse_err)
       end)
     end)
   end)

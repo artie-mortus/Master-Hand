@@ -91,6 +91,10 @@ local function one_line(value)
   return (text:gsub("%s*\n%s*", " "))
 end
 
+function M.is_open()
+  return M.win and vim.api.nvim_win_is_valid(M.win)
+end
+
 local function lines()
   -- Render from cached context; avoid blocking git/rg/index/model work during UI close/quit/render.
   local out = { "Master Hand", string.rep("─", 32) }
@@ -167,7 +171,7 @@ function M.sidebar_width()
 end
 
 function M.apply_width()
-  if not (M.win and vim.api.nvim_win_is_valid(M.win)) then return end
+  if not M.is_open() then return end
   vim.wo[M.win].winfixwidth = true
   local width = M.sidebar_width()
   if vim.api.nvim_win_get_width(M.win) ~= width then pcall(vim.api.nvim_win_set_width, M.win, width) end
@@ -179,14 +183,14 @@ local function ensure_resize_autocmd()
   vim.api.nvim_create_autocmd("VimResized", {
     group = M.augroup,
     callback = function()
-      if M.win and vim.api.nvim_win_is_valid(M.win) then vim.schedule(M.apply_width) end
+      if M.is_open() then vim.schedule(M.apply_width) end
     end,
   })
 end
 
 function M.open()
   M.render()
-  if M.win and vim.api.nvim_win_is_valid(M.win) then
+  if M.is_open() then
     M.apply_width()
     vim.api.nvim_set_current_win(M.win)
     return
@@ -210,7 +214,7 @@ function M.open()
 end
 
 function M.close()
-  if M.win and vim.api.nvim_win_is_valid(M.win) then
+  if M.is_open() then
     vim.api.nvim_win_close(M.win, true)
   end
   M.win = nil
@@ -221,7 +225,7 @@ function M.suggestion_under_cursor()
   for i = line, 1, -1 do
     local text = vim.api.nvim_buf_get_lines(0, i - 1, i, false)[1] or ""
     local idx = tonumber(text:match("^(%d+)%."))
-    if idx then return state.data.suggestions[idx] end
+    if idx then return state.suggestion(idx) end
   end
 end
 

@@ -20,12 +20,6 @@ local function replace_vars(value, vars)
   end))
 end
 
-local function suggestion_by_index(index)
-  index = tonumber(index)
-  if not index then return nil end
-  return state.data.suggestions[index]
-end
-
 function M.prompt(suggestion)
   local snap = state.data.last_context or {}
   local files = table.concat(suggestion.files or {}, ", ")
@@ -174,7 +168,7 @@ function M.dispatch(suggestion, cb)
 end
 
 function M.approve(index)
-  local suggestion = type(index) == "table" and index or suggestion_by_index(index)
+  local suggestion = type(index) == "table" and index or state.suggestion(index)
   if not suggestion then return nil, "no suggestion" end
   return M.dispatch(suggestion)
 end
