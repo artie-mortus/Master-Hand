@@ -19,7 +19,7 @@ local function assert_eq(a, b, msg) assert(vim.deep_equal(a, b), (msg or "assert
 config.setup({ storage = { enabled = false } })
 assert_eq(config.get().model.provider, "auto")
 assert_eq(config.get().model.timeout_ms, 60000, "model timeout allows cold local models")
-assert_eq(config.get().agent.enabled, false, "agent handoff disabled by default")
+assert_eq(config.get().agent.enabled, true, "agent handoff enabled by default after approval")
 assert(path.is_ignored("node_modules/x.js", config.get().ignore), "node_modules ignored")
 assert(path.is_ignored(".env.local", config.get().ignore), ".env.* ignored")
 assert(not path.is_ignored("lua/x.lua", config.get().ignore), "lua file not ignored")

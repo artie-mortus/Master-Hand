@@ -15,14 +15,14 @@
 ## Quick Install
 
 ```lua
--- lazy.nvim - minimal (passive mode, no agent)
-{ "artie-mortus/Master-Hand", name = "master-hand", cmd = "MH", opts = {} }
+-- lazy.nvim - minimal (passive mode, agent handoff after approval)
+{ "artie-mortus/Master-Hand", name = "master-hand", cmd = { "MH", "MasterHand", "MHSuggest", "MHPlan", "MHSend" }, opts = {} }
 
--- lazy.nvim - with agent handoff to pi/Codex/terminal
+-- lazy.nvim - recommended with explicit agent/model choices
 {
   "artie-mortus/Master-Hand",
   name = "master-hand",
-  cmd = "MH",
+  cmd = { "MH", "MasterHand", "MHSuggest", "MHPlan", "MHSend" },
   keys = { { "<leader>mh", "<cmd>MH<cr>", desc = "Master Hand" } },
   opts = {
     proactivity = "passive",
@@ -468,7 +468,7 @@ require("master-hand").setup({
     timeout_ms = 10000,
   },
   agent = {
-    enabled = false,
+    enabled = true, -- handoff only happens after approving a suggestion
     adapter = "auto",
     auto_checktime = true,
   },
