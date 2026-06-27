@@ -291,8 +291,99 @@ local async_handlers = {
   anthropic = anthropic_async,
 }
 
-function M.complete(messages, opts)
-  local model = vim.tbl_deep_extend("force", config.get().model, opts or {})
+local function infer_provider(model_name)
+  model_name = (model_name or ""):lower()
+  if model_name:match("^gpt%-?%d") or model_name:match("^o%d") then return "openai_compatible" end
+  return "ollama"
+end
+
+local function is_ollama_cloud(provider)
+  return provider == "ollama_cloud" or provider == "ollama-cloud"
+end
+
+local function normalize_provider(provider)
+  if provider == "openai" then return "openai_compatible" end
+  if is_ollama_cloud(provider) then return "ollama" end
+  return provider
+end
+
+local function apply_provider_defaults(model)
+  model = vim.deepcopy(model or {})
+  if not model.provider and model.name then model.provider = infer_provider(model.name) end
+  local cloud = is_ollama_cloud(model.provider)
+  model.provider = normalize_provider(model.provider)
+  if cloud then
+    model.endpoint = model.endpoint or "https://ollama.com/api/chat"
+    model.api_key_env = model.api_key_env or "OLLAMA_API_KEY"
+  elseif model.provider == "openai_compatible" then
+    model.endpoint = model.endpoint or "https://api.openai.com/v1/chat/completions"
+    model.api_key_env = model.api_key_env or "OPENAI_API_KEY"
+  elseif model.provider == "openrouter" then
+    model.api_key_env = model.api_key_env or "OPENROUTER_API_KEY"
+  elseif model.provider == "anthropic" then
+    model.api_key_env = model.api_key_env or "ANTHROPIC_API_KEY"
+  end
+  return model
+end
+
+local function is_cloud_model(model)
+  if model.cloud ~= nil then return model.cloud == true end
+  if model.is_local == true or model["local"] == true then return false end
+  local provider = model.provider
+  if provider == "auto" then return false end
+  if provider == "ollama" then
+    local endpoint = model.endpoint or "http://localhost:11434/api/chat"
+    return not (endpoint:match("^https?://localhost") or endpoint:match("^https?://127%.0%.0%.1"))
+  end
+  return provider == "openai_compatible" or provider == "openrouter" or provider == "anthropic" or auth.is_account_provider(provider)
+end
+
+local function rank_value(model)
+  return tonumber(model.rank or model.tier or model.score or 0) or 0
+end
+
+local function common_model(model)
+  local out = vim.deepcopy(model or {})
+  for _, key in ipairs({ "ranked", "candidates", "ranking_model", "selection", "cloud_policy", "provider", "name", "endpoint", "api_key_env", "api_key", "executable", "command", "login_command", "rank", "tier", "score", "local", "is_local", "cloud" }) do
+    out[key] = nil
+  end
+  return out
+end
+
+local function routed_candidates(model)
+  if model.selection == "fixed" then return nil end
+  local ranked = model.ranked or model.candidates
+  if type(ranked) ~= "table" or #ranked == 0 then return nil end
+
+  local common = common_model(model)
+  local candidates = {}
+  for index, candidate in ipairs(ranked) do
+    if type(candidate) == "table" then
+      local merged = apply_provider_defaults(vim.tbl_deep_extend("force", common, candidate))
+      merged.selection = "fixed"
+      merged._rank_index = index
+      table.insert(candidates, merged)
+    end
+  end
+
+  local best_first = model.cloud_policy == "best"
+  table.sort(candidates, function(a, b)
+    if not best_first then
+      local a_cloud, b_cloud = is_cloud_model(a), is_cloud_model(b)
+      if a_cloud ~= b_cloud then return not a_cloud end
+    end
+    local ar, br = rank_value(a), rank_value(b)
+    if ar ~= br then return ar > br end
+    return (a._rank_index or 0) < (b._rank_index or 0)
+  end)
+  return candidates
+end
+
+local function model_label(model)
+  return table.concat({ tostring(model.provider or "?"), tostring(model.name or "auto") }, "/")
+end
+
+local function complete_one(model, messages)
   if model.provider == "none" then return nil, "model provider disabled" end
   local handler = sync_handlers[model.provider]
   if handler then return handler(model, messages) end
@@ -300,13 +391,123 @@ function M.complete(messages, opts)
   return nil, "provider not implemented: " .. tostring(model.provider)
 end
 
-function M.complete_async(messages, opts, cb)
-  local model = vim.tbl_deep_extend("force", config.get().model, opts or {})
+local function complete_one_async(model, messages, cb)
   if model.provider == "none" then cb(nil, "model provider disabled"); return end
   local handler = async_handlers[model.provider]
   if handler then handler(model, messages, cb); return end
   if auth.is_account_provider(model.provider) then account_cli_async(model, messages, cb); return end
   cb(nil, "provider not implemented: " .. tostring(model.provider))
+end
+
+local function request_excerpt(messages)
+  local text = messages_prompt(messages)
+  text = text:gsub("%s+", " ")
+  if #text > 2000 then text = text:sub(1, 2000) .. "…" end
+  return text
+end
+
+local function ranking_request(model, messages, candidates)
+  local instruction = model.cloud_policy == "best"
+    and "Pick strongest best-fit model candidate for this request. Return only one number."
+    or "Pick best model candidate for this request. Prefer local models unless task clearly needs stronger cloud reasoning. Return only one number."
+  local lines = {
+    instruction,
+    "Request: " .. request_excerpt(messages),
+    "Candidates:",
+  }
+  for i, candidate in ipairs(candidates) do
+    table.insert(lines, string.format("%d. provider=%s name=%s local=%s rank=%s", i, tostring(candidate.provider), tostring(candidate.name or "auto"), tostring(not is_cloud_model(candidate)), tostring(rank_value(candidate))))
+  end
+  return { { role = "user", content = table.concat(lines, "\n") } }
+end
+
+local function default_ranking_model(model, candidates)
+  if type(model.ranking_model) == "table" then
+    return apply_provider_defaults(vim.tbl_deep_extend("force", common_model(model), model.ranking_model, { selection = "fixed" }))
+  end
+  local best
+  for _, candidate in ipairs(candidates) do
+    if is_cloud_model(candidate) and (not best or rank_value(candidate) > rank_value(best)) then best = candidate end
+  end
+  if not best then return nil end
+  local ranker = vim.deepcopy(best)
+  ranker.selection = "fixed"
+  ranker.max_tokens = math.min(tonumber(model.ranking_max_tokens or ranker.max_tokens or 24) or 24, 64)
+  ranker.temperature = 0
+  return ranker
+end
+
+local function reorder_candidates(candidates, picked)
+  picked = tonumber((picked or ""):match("%d+"))
+  if not picked or not candidates[picked] then return candidates end
+  local ordered = { candidates[picked] }
+  for i, candidate in ipairs(candidates) do if i ~= picked then table.insert(ordered, candidate) end end
+  return ordered
+end
+
+local function cloud_rank(model, messages, candidates)
+  local ranker = default_ranking_model(model, candidates)
+  if not ranker or not is_cloud_model(ranker) then return candidates end
+  local choice = complete_one(ranker, ranking_request(model, messages, candidates))
+  return reorder_candidates(candidates, choice)
+end
+
+local function cloud_rank_async(model, messages, candidates, cb)
+  local ranker = default_ranking_model(model, candidates)
+  if not ranker or not is_cloud_model(ranker) then cb(candidates); return end
+  complete_one_async(ranker, ranking_request(model, messages, candidates), function(choice)
+    cb(reorder_candidates(candidates, choice))
+  end)
+end
+
+local function routed_error(errors)
+  return "all routed model candidates failed: " .. table.concat(errors, "; ")
+end
+
+local function complete_routed(model, messages, candidates)
+  local errors = {}
+  for _, candidate in ipairs(cloud_rank(model, messages, candidates)) do
+    local content, err = complete_one(candidate, messages)
+    if content then return content end
+    table.insert(errors, model_label(candidate) .. " " .. tostring(err))
+  end
+  return nil, routed_error(errors)
+end
+
+local function complete_routed_ordered(messages, candidates, cb)
+  local errors = {}
+  local index = 1
+  local function next_candidate()
+    local candidate = candidates[index]
+    index = index + 1
+    if not candidate then cb(nil, routed_error(errors)); return end
+    complete_one_async(candidate, messages, function(content, err)
+      if content then cb(content); return end
+      table.insert(errors, model_label(candidate) .. " " .. tostring(err))
+      next_candidate()
+    end)
+  end
+  next_candidate()
+end
+
+local function complete_routed_async(model, messages, candidates, cb)
+  cloud_rank_async(model, messages, candidates, function(ordered)
+    complete_routed_ordered(messages, ordered, cb)
+  end)
+end
+
+function M.complete(messages, opts)
+  local model = apply_provider_defaults(vim.tbl_deep_extend("force", config.get().model, opts or {}))
+  local candidates = routed_candidates(model)
+  if candidates then return complete_routed(model, messages, candidates) end
+  return complete_one(model, messages)
+end
+
+function M.complete_async(messages, opts, cb)
+  local model = apply_provider_defaults(vim.tbl_deep_extend("force", config.get().model, opts or {}))
+  local candidates = routed_candidates(model)
+  if candidates then complete_routed_async(model, messages, candidates, cb); return end
+  complete_one_async(model, messages, cb)
 end
 
 return M

@@ -15,7 +15,7 @@ local function complete_from(items, arglead)
 end
 
 local function model_complete(arglead)
-  return complete_from({ "auto", "none", "ollama", "ollama-cloud", "openai", "openrouter", "anthropic", "openai_compatible", "codex", "claude", "gemini", "pi", "cli", "provider=", "model=", "endpoint=", "api_key_env=", "api_key=", "executable=", "command=", "login_command=" }, arglead)
+  return complete_from({ "auto", "fixed", "none", "ollama", "ollama-cloud", "openai", "openrouter", "anthropic", "openai_compatible", "codex", "claude", "gemini", "pi", "cli", "provider=", "model=", "selection=", "cloud_policy=", "ranking_max_tokens=", "endpoint=", "api_key_env=", "api_key=", "executable=", "command=", "login_command=" }, arglead)
 end
 
 local function auth_complete(arglead)

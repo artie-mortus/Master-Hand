@@ -27,6 +27,11 @@ M.defaults = {
   },
   model = {
     provider = "auto", -- none | auto | openai_compatible | openrouter | ollama | anthropic | codex | claude | gemini | pi | cli
+    selection = "auto", -- auto | fixed; fixed ignores ranked model routing
+    cloud_policy = "fallback", -- fallback orders local candidates before cloud before cloud ranker chooses
+    ranking_model = nil, -- optional cloud model used only to pick ranked candidate; defaults to highest-ranked cloud candidate
+    ranking_max_tokens = 24,
+    ranked = {}, -- optional ranked model candidates: { { provider = "ollama", name = "qwen", rank = 70 }, ... }
     endpoint = nil,
     api_key_env = nil,
     api_key = nil,

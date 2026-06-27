@@ -209,6 +209,9 @@ local function apply_model_defaults(update)
   if cloud then
     update.endpoint = update.endpoint or "https://ollama.com/api/chat"
     update.api_key_env = update.api_key_env or "OLLAMA_API_KEY"
+  elseif update.provider == "ollama" then
+    update.endpoint = update.endpoint or vim.NIL
+    update.api_key_env = update.api_key_env or vim.NIL
   elseif update.provider == "openai_compatible" then
     update.endpoint = update.endpoint or "https://api.openai.com/v1/chat/completions"
     update.api_key_env = update.api_key_env or "OPENAI_API_KEY"
@@ -230,6 +233,8 @@ end
 local function model_summary()
   local model = config.get().model or {}
   local parts = { "provider=" .. tostring(model.provider or "?") }
+  if model.selection and model.selection ~= "" then table.insert(parts, "selection=" .. tostring(model.selection)) end
+  if model.ranked and #model.ranked > 0 then table.insert(parts, "ranked=" .. tostring(#model.ranked)) end
   if model.name and model.name ~= "" then table.insert(parts, "name=" .. model.name) end
   if model.endpoint and model.endpoint ~= "" then table.insert(parts, "endpoint=" .. model.endpoint) end
   if model.api_key_env and model.api_key_env ~= "" then table.insert(parts, "api_key_env=" .. model.api_key_env) end
@@ -256,6 +261,14 @@ local function parse_model_args(args)
   end
 
   local first = args[1]
+  if first == "fixed" then
+    update.selection = "fixed"
+    if #args == 1 then return update end
+    table.remove(args, 1)
+    local nested = parse_model_args(args) or {}
+    nested.selection = "fixed"
+    return nested
+  end
   local explicit_provider = model_providers[first]
   update.provider = explicit_provider and first or infer_provider(first)
   update.name = explicit_provider and (args[2] or vim.NIL) or first

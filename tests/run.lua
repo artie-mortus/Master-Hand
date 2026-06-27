@@ -113,6 +113,39 @@ end
 content, perr = providers.complete({}, { provider = "openai_compatible", endpoint = "http://example.invalid", name = "x" })
 assert_eq(content, "[]", "provider returns content")
 assert_eq(perr, nil, "successful provider call has nil error")
+local routed_calls = {}
+vim.system = function(argv_arg)
+  table.insert(routed_calls, table.concat(argv_arg, " "))
+  local body = argv_arg[#argv_arg]
+  local stdout
+  if body:match("model candidate") then
+    stdout = '{"choices":[{"message":{"content":"1"}}]}'
+  else
+    stdout = body:match('"model":"cloud"') and '{"choices":[{"message":{"content":"cloud ok"}}]}' or '{"message":{"content":"local ok"}}'
+  end
+  return { wait = function() return { code = 0, signal = 0, stdout = stdout, stderr = "" } end }
+end
+content, perr = providers.complete({}, { selection = "auto", cloud_policy = "fallback", ranked = {
+  { provider = "openai", name = "cloud", rank = 99 },
+  { provider = "ollama", name = "local", rank = 10, is_local = true },
+} })
+assert_eq(content, "local ok", "cloud-ranked routing can choose local model")
+assert(routed_calls[1]:match('"model":"cloud"') and routed_calls[1]:match("model candidate"), "cloud model ranks candidates first")
+assert(routed_calls[2]:match('"model":"local"'), "ranker-selected local model runs after cloud ranking")
+routed_calls = {}
+content, perr = providers.complete({}, { selection = "auto", cloud_policy = "best", ranked = {
+  { provider = "openai", name = "cloud", rank = 99 },
+  { provider = "ollama", name = "local", rank = 10, is_local = true },
+} })
+assert_eq(content, "cloud ok", "cloud-ranked routing can choose cloud model")
+assert(routed_calls[1]:match('"model":"cloud"') and routed_calls[1]:match("model candidate"), "cloud model ranks best-policy candidates first")
+assert(routed_calls[2]:match('"model":"cloud"'), "ranker-selected cloud model runs after ranking")
+routed_calls = {}
+content, perr = providers.complete({}, { selection = "fixed", provider = "ollama", name = "local", ranked = {
+  { provider = "openai", name = "cloud", rank = 99 },
+} })
+assert_eq(content, "local ok", "fixed selection bypasses ranked routing")
+assert_eq(#routed_calls, 1, "fixed selection skips cloud ranking")
 local cli_call = nil
 vim.system = function(argv_arg, opts_arg)
   cli_call = { argv = argv_arg, opts = opts_arg }
@@ -152,6 +185,12 @@ assert_eq(config.get().model.provider, "openai_compatible", ":MHModel openai map
 assert_eq(config.get().model.name, "gpt-5.5", ":MHModel openai sets model name")
 assert_eq(config.get().model.endpoint, "https://api.openai.com/v1/chat/completions", ":MHModel openai sets default endpoint")
 assert_eq(config.get().model.api_key_env, "OPENAI_API_KEY", ":MHModel openai sets default api env")
+mh.model({ "fixed", "ollama", "one-model" })
+assert_eq(config.get().model.selection, "fixed", ":MHModel fixed locks selection")
+assert_eq(config.get().model.provider, "ollama", ":MHModel fixed preserves provider parsing")
+assert_eq(config.get().model.name, "one-model", ":MHModel fixed sets one model")
+mh.model({ "selection=auto" })
+assert_eq(config.get().model.selection, "auto", ":MHModel selection=auto re-enables routing")
 mh.model({ "gpt-5.5" })
 assert_eq(config.get().model.provider, "openai_compatible", ":MHModel infers OpenAI for versioned gpt models")
 assert_eq(config.get().model.name, "gpt-5.5", ":MHModel keeps inferred OpenAI model name")

@@ -333,6 +333,23 @@ Goal steering:
 
 With `provider = "auto"`, Master Hand uses local Ollama when available, preferring coder/code/Qwen models. If no model is reachable, local heuristic suggestions still work. Use `provider = "none"` to disable model calls.
 
+Ranked model routing now uses a cloud model as the router. Master Hand sends a tiny candidate-selection prompt to `ranking_model` (or the highest-ranked cloud candidate), then runs the chosen local or cloud model. Default `cloud_policy = "fallback"` lists local candidates first so the cloud router can conserve usage; `cloud_policy = "best"` lists everything by rank. Set `selection = "fixed"` for one singular model and to skip cloud ranking.
+
+```lua
+require("master-hand").setup({
+  model = {
+    selection = "auto", -- cloud-rank candidates; use "fixed" for one model
+    cloud_policy = "fallback", -- local candidates listed first for router
+    ranking_model = { provider = "openrouter", name = "openai/gpt-4.1-mini", api_key_env = "OPENROUTER_API_KEY" },
+    ranked = {
+      { provider = "ollama", name = "qwen3-coder:latest", rank = 70, is_local = true },
+      { provider = "ollama-cloud", name = "gpt-oss:120b", rank = 90 },
+      { provider = "openrouter", name = "anthropic/claude-3.5-sonnet", rank = 95, api_key_env = "OPENROUTER_API_KEY" },
+    },
+  },
+})
+```
+
 Runtime model switching:
 
 ```vim
@@ -341,6 +358,8 @@ Runtime model switching:
 :MHModel none                    " disable model calls
 :MHModel qwen3-coder:latest      " infer local Ollama
 :MHModel ollama qwen3-coder:latest
+:MHModel fixed ollama qwen3-coder:latest " lock one singular model
+:MHModel selection=auto              " re-enable ranked routing
 :MHModel ollama-cloud gpt-oss:120b
 :MHModel pi                     " use Pi as read-only/background model provider
 :MHModel codex                  " use logged-in Codex subscription CLI
