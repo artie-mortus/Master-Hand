@@ -51,14 +51,14 @@ Sidebar keys:
 
 | Key | Action |
 | --- | --- |
-| `a` | Accept/useful feedback; if `agent.enabled`, approve/send selected suggestion |
+| `a` | Accept and send selected suggestion to external agent |
 | `d` | Dismiss suggestion |
 | `p` | Postpone suggestion |
 | `v` | View details |
 | `r` | Refresh suggestions |
 | `q` | Close sidebar |
 
-By default, `a` records feedback only. With `agent.enabled = true`, `a` sends the selected suggestion to the configured external coding agent and starts short-lived `:checktime` polling so Neovim notices saved edits.
+`a` sends the selected suggestion to the configured external coding agent and starts short-lived `:checktime` polling so Neovim notices saved edits. Set `agent.enabled = false` for feedback-only mode.
 
 Intentional flow: **open → ask/goal → read suggestions → approve only useful help**.
 
@@ -318,7 +318,7 @@ Auth helpers:
 <details>
 <summary><strong>🛫 Agent handoff</strong></summary>
 
-Agent handoff is disabled by default. Enable only when you want approved suggestions to leave Neovim and go to another coding agent.
+Agent handoff is enabled by default. Accepting a suggestion sends it to an external agent. Disable if you want feedback-only mode.
 
 ```lua
 require("master-hand").setup({
@@ -445,7 +445,7 @@ MasterHandKeys
 <summary><strong>🔒 Safety model</strong></summary>
 
 - No automatic edits or command execution.
-- Accepting a suggestion records feedback only unless `agent.enabled = true`.
+- Accepting a suggestion dispatches to an external agent unless `agent.enabled = false`.
 - Diffs must pass `git apply --check` before approval and before apply.
 - Commands use argv arrays, not shell strings.
 - Shell metacharacters and dangerous commands are blocked.
