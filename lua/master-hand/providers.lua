@@ -3,21 +3,23 @@ local config = require("master-hand.config")
 local auth = require("master-hand.auth")
 local M = {}
 
--- Auth headers go through `--config -` on stdin so API keys never appear in the
--- process argv (visible to any local user via ps).
+local function config_escape(value)
+  return (value:gsub("\\", "\\\\"):gsub('"', '\\"'))
+end
+
+-- Auth headers and the JSON body both go through `--config -` on stdin: API keys
+-- never appear in the process argv (visible to any local user via ps), and a large
+-- context body cannot hit the kernel's per-argument exec limit (E2BIG at ~128KiB).
 local function curl_cmd(url, body, headers)
-  local cmd = { "curl", "-sS", "-X", "POST", url, "-H", "Content-Type: application/json" }
-  local stdin = nil
-  if headers and #headers > 0 then
-    local lines = {}
-    for _, header in ipairs(headers) do
-      table.insert(lines, string.format('header = "%s"', header:gsub("\\", "\\\\"):gsub('"', '\\"')))
-    end
-    stdin = table.concat(lines, "\n") .. "\n"
-    vim.list_extend(cmd, { "--config", "-" })
+  local cmd = { "curl", "-sS", "-X", "POST", url, "-H", "Content-Type: application/json", "--config", "-" }
+  local lines = {}
+  for _, header in ipairs(headers or {}) do
+    table.insert(lines, string.format('header = "%s"', config_escape(header)))
   end
-  vim.list_extend(cmd, { "-d", vim.json.encode(body) })
-  return cmd, stdin
+  -- vim.json.encode emits one line (control chars stay JSON-escaped), so the
+  -- quoted config value never contains a raw newline.
+  table.insert(lines, string.format('data-raw = "%s"', config_escape(vim.json.encode(body))))
+  return cmd, table.concat(lines, "\n") .. "\n"
 end
 
 local function decode_response(res, timeout_ms)
@@ -34,17 +36,29 @@ local function decode_response(res, timeout_ms)
   return decoded
 end
 
+-- vim.system throws on spawn failure (missing binary, E2BIG argv, ...). Callers
+-- need (nil, err) so async suggestion chains degrade instead of dying mid-callback
+-- with the loading spinner stuck on.
+local function spawn(cmd, opts, on_exit)
+  local ok, proc = pcall(vim.system, cmd, opts, on_exit)
+  if ok then return proc end
+  return nil, tostring(proc)
+end
+
 local function post_json(url, body, headers, timeout_ms)
   local cmd, stdin = curl_cmd(url, body, headers)
-  return decode_response(vim.system(cmd, { text = true, stdin = stdin, timeout = timeout_ms }):wait(), timeout_ms)
+  local proc, spawn_err = spawn(cmd, { text = true, stdin = stdin, timeout = timeout_ms })
+  if not proc then return nil, spawn_err end
+  return decode_response(proc:wait(), timeout_ms)
 end
 
 local function post_json_async(url, body, headers, timeout_ms, cb)
   local cmd, stdin = curl_cmd(url, body, headers)
-  vim.system(cmd, { text = true, stdin = stdin, timeout = timeout_ms }, function(res)
+  local proc, spawn_err = spawn(cmd, { text = true, stdin = stdin, timeout = timeout_ms }, function(res)
     local decoded, err = decode_response(res, timeout_ms)
     vim.schedule(function() cb(decoded, err) end)
   end)
+  if not proc then vim.schedule(function() cb(nil, spawn_err) end) end
 end
 
 local account_cli_commands = {
@@ -100,17 +114,20 @@ local function account_cli(model, messages)
   local prompt = messages_prompt(messages)
   local cmd, stdin, err = cli_command(model, prompt)
   if not cmd then return nil, err end
-  return decode_cli_response(vim.system(cmd, { text = true, stdin = stdin, timeout = model.timeout_ms }):wait(), model.timeout_ms, model.provider)
+  local proc, spawn_err = spawn(cmd, { text = true, stdin = stdin, timeout = model.timeout_ms })
+  if not proc then return nil, spawn_err end
+  return decode_cli_response(proc:wait(), model.timeout_ms, model.provider)
 end
 
 local function account_cli_async(model, messages, cb)
   local prompt = messages_prompt(messages)
   local cmd, stdin, err = cli_command(model, prompt)
   if not cmd then cb(nil, err); return end
-  vim.system(cmd, { text = true, stdin = stdin, timeout = model.timeout_ms }, function(res)
+  local proc, spawn_err = spawn(cmd, { text = true, stdin = stdin, timeout = model.timeout_ms }, function(res)
     local content, cli_err = decode_cli_response(res, model.timeout_ms, model.provider)
     vim.schedule(function() cb(content, cli_err) end)
   end)
+  if not proc then vim.schedule(function() cb(nil, spawn_err) end) end
 end
 
 local function openai_body(model, messages)
@@ -181,17 +198,20 @@ local function pick_ollama_model(stdout)
 end
 
 local function local_ollama_model()
-  local res = vim.system({ "ollama", "list" }, { text = true, timeout = 3000 }):wait()
+  local proc = spawn({ "ollama", "list" }, { text = true, timeout = 3000 })
+  if not proc then return nil end
+  local res = proc:wait()
   if res.code ~= 0 then return nil end
   return pick_ollama_model(res.stdout)
 end
 
 local function local_ollama_model_async(cb)
-  vim.system({ "ollama", "list" }, { text = true, timeout = 3000 }, function(res)
+  local proc = spawn({ "ollama", "list" }, { text = true, timeout = 3000 }, function(res)
     vim.schedule(function()
       cb(res.code == 0 and pick_ollama_model(res.stdout) or nil)
     end)
   end)
+  if not proc then vim.schedule(function() cb(nil) end) end
 end
 
 local function ollama_body(model, messages)

@@ -493,6 +493,8 @@ MasterHandKeys
 - Accepting a suggestion dispatches to an external agent unless `agent.enabled = false`.
 - Diffs must pass `git apply --check` before approval and before apply.
 - Commands use argv arrays, not shell strings.
+- Model request bodies and auth headers travel over stdin, never argv — keys stay out of `ps` output and large contexts cannot hit the kernel's per-argument exec limit (E2BIG).
+- Provider spawn failures surface as sidebar errors instead of breaking the async suggestion flow.
 - Shell metacharacters and dangerous commands are blocked.
 - Pending diffs live in memory, not on disk.
 - Model/provider failures degrade to local heuristic suggestions.

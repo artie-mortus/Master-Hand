@@ -301,7 +301,7 @@ local function auth_env_for(update)
 end
 
 local function run_login_background(argv)
-  vim.system(argv, { text = true, timeout = config.get().model.timeout_ms }, function(res)
+  local ok, err = pcall(vim.system, argv, { text = true, timeout = config.get().model.timeout_ms }, function(res)
     vim.schedule(function()
       local output = vim.trim((res.stdout or "") .. (res.stderr or ""))
       if res.code == 0 then
@@ -311,6 +311,9 @@ local function run_login_background(argv)
       end
     end)
   end)
+  if not ok then
+    vim.notify("Master Hand auth login failed: " .. tostring(err), vim.log.levels.ERROR)
+  end
 end
 
 function M.auth(args)

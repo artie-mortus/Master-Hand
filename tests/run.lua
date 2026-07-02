@@ -140,10 +140,30 @@ assert_eq(content, "ok", "provider call with key succeeds")
 assert(not table.concat(secret_call.argv, " "):match("sk%-super%-secret"), "api key never appears in process argv")
 assert(secret_call.opts.stdin and secret_call.opts.stdin:match("sk%-super%-secret"), "api key passes via curl config on stdin")
 vim.env.MASTER_HAND_TEST_SECRET_KEY = nil
+
+-- Request body must ride stdin, not argv: single exec args cap at ~128KiB (E2BIG).
+local big_call = nil
+vim.system = function(argv_arg, opts_arg)
+  big_call = { argv = argv_arg, opts = opts_arg }
+  return { wait = function() return { code = 0, signal = 0, stdout = '{"choices":[{"message":{"content":"ok"}}]}', stderr = "" } end }
+end
+local big_message = string.rep("x", 300000)
+content, perr = providers.complete({ { role = "user", content = big_message } }, { provider = "openai_compatible", endpoint = "http://example.invalid", name = "x" })
+assert_eq(content, "ok", "provider call with large body succeeds")
+for _, arg in ipairs(big_call.argv) do
+  assert(#arg < 4096, "no argv element carries the request body: " .. #arg .. " bytes")
+end
+assert(big_call.opts.stdin and #big_call.opts.stdin > 300000, "request body passes via curl config on stdin")
+
+-- curl config quotes stdin values; unescape data-raw to recover the JSON body.
+local function stdin_body(opts_arg)
+  local raw = (opts_arg and opts_arg.stdin or ""):match('data%-raw = "(.*)"')
+  return raw and raw:gsub("\\(.)", "%1") or ""
+end
 local routed_calls = {}
-vim.system = function(argv_arg)
-  table.insert(routed_calls, table.concat(argv_arg, " "))
-  local body = argv_arg[#argv_arg]
+vim.system = function(argv_arg, opts_arg)
+  table.insert(routed_calls, table.concat(argv_arg, " ") .. " " .. stdin_body(opts_arg))
+  local body = stdin_body(opts_arg)
   local stdout
   if body:match("model candidate") then
     stdout = '{"choices":[{"message":{"content":"1"}}]}'
