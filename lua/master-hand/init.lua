@@ -96,7 +96,7 @@ local function setup_autocmds()
     callback = function()
       stop_timer()
       stop_loading()
-      agent.stop_sync_poll()
+      agent.stop_all()
       save_state()
     end,
   })

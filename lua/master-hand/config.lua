@@ -66,6 +66,7 @@ M.defaults = {
     executable = nil, -- defaults to pi, or codex when adapter/executable says codex
     command = nil, -- optional argv template list; supports {prompt}, {root}, {prompt_q}, {root_q}; shell strings rejected
     target = nil, -- tmux target pane/window; or MASTER_HAND_TMUX_TARGET
+    timeout_ms = nil, -- optional kill timeout for dispatched agent processes; nil = unlimited (handoffs are long-running by design)
     auto_checktime = true,
     set_autoread = true,
     checktime_interval_ms = 2000,

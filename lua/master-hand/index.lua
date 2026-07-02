@@ -69,12 +69,19 @@ local function todos_for(file, text, limit)
 end
 
 -- Build compact repo facts for prompts/UI without calling external models.
-function M.build(root)
+-- `files` is an optional pre-fetched tracked-file list (already ignore-filtered);
+-- async snapshot passes it so index building never blocks on git here.
+function M.build(root, files)
   root = root or git.root()
   local opts = config.get().context.index or {}
   local max_files = opts.max_files or 500
   local max_file_bytes = opts.max_file_bytes or 20000
-  local files = git.ls_files(root, max_files)
+  if files and #files > max_files then
+    local trimmed = {}
+    for i = 1, max_files do trimmed[i] = files[i] end
+    files = trimmed
+  end
+  files = files or git.ls_files(root, max_files)
   local idx = {
     files_seen = #files,
     dirs = {},

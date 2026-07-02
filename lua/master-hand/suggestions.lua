@@ -157,39 +157,39 @@ function M.generate(opts)
   return set_filtered(out)
 end
 
+-- Fully non-blocking generation: both snapshots run through snapshot_async,
+-- so this is safe on the typing-triggered debounce path (no process :wait()).
+-- The quick pass surfaces local suggestions fast; the full pass then scans the
+-- repo before optional model calls.
 function M.generate_async(opts, cb)
   opts = opts or {}
   cb = cb or function() end
-  local quick_snap = context.snapshot({ quick = true })
-  local initial_suggestions = heuristic(quick_snap)
-  set_filtered(initial_suggestions)
+  context.snapshot_async({ quick = true }, function(quick_snap)
+    set_filtered(heuristic(quick_snap))
 
-  -- Show quick local suggestions immediately, then scan the project on the next
-  -- loop tick so :MH can render before git/index/rg work runs.
-  vim.schedule(function()
-    local snap = context.snapshot({ quick = false })
-    local local_suggestions = heuristic(snap)
-    set_filtered(local_suggestions)
+    context.snapshot_async({ quick = false }, function(snap)
+      local local_suggestions = heuristic(snap)
+      set_filtered(local_suggestions)
 
-    local model = config.get().model or {}
-    if model.provider == "none" then cb(local_suggestions); return end
+      local model = config.get().model or {}
+      if model.provider == "none" then cb(local_suggestions); return end
 
-    infer_model_goal_async(snap, opts, function(refined_snap, goal_err, goal_content)
-      local refined_local_suggestions = heuristic(refined_snap)
-      set_filtered(refined_local_suggestions)
-      if model.provider == "auto" and goal_err and not goal_content then cb(refined_local_suggestions, goal_err); return end
+      infer_model_goal_async(snap, opts, function(refined_snap, goal_err, goal_content)
+        local refined_local_suggestions = heuristic(refined_snap)
+        set_filtered(refined_local_suggestions)
+        if model.provider == "auto" and goal_err and not goal_content then cb(refined_local_suggestions, goal_err); return end
 
-      local request = vim.deepcopy(refined_snap)
-      request.code = code_context(request)
-      providers.complete_async(prompts.suggestions(request, opts.mode or "suggest", refined_local_suggestions), nil, function(content, err)
-        local out = vim.deepcopy(refined_local_suggestions)
-        local parsed, parse_err = parse_provider_suggestions(content, err, model)
-        vim.list_extend(out, parsed)
-        cb(set_filtered(out), parse_err)
+        local request = vim.deepcopy(refined_snap)
+        request.code = code_context(request)
+        providers.complete_async(prompts.suggestions(request, opts.mode or "suggest", refined_local_suggestions), nil, function(content, err)
+          local out = vim.deepcopy(refined_local_suggestions)
+          local parsed, parse_err = parse_provider_suggestions(content, err, model)
+          vim.list_extend(out, parsed)
+          cb(set_filtered(out), parse_err)
+        end)
       end)
     end)
   end)
-  return initial_suggestions
 end
 
 return M

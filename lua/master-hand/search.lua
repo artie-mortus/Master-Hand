@@ -17,15 +17,16 @@ local function ignored_args()
   return args
 end
 
-function M.rg(root, query, limit)
-  if not query or query == "" then return {} end
-  limit = limit or 40
+local function rg_args(query)
   local args = { "rg", "--line-number", "--column", "--no-heading", "--smart-case", "--max-count", "5" }
   vim.list_extend(args, ignored_args())
   -- -e keeps a query starting with "-" from being parsed as an rg flag.
   table.insert(args, "-e")
   table.insert(args, query)
-  local res = vim.system(args, { cwd = root, text = true, timeout = timeout_ms() }):wait()
+  return args
+end
+
+local function parse_rg(res, limit)
   local out = {}
   if res.code ~= 0 and (res.stdout or "") == "" then return out end
   for line in (res.stdout or ""):gmatch("[^\n]+") do
@@ -36,6 +37,25 @@ function M.rg(root, query, limit)
     end
   end
   return out
+end
+
+function M.rg(root, query, limit)
+  if not query or query == "" then return {} end
+  limit = limit or 40
+  local res = vim.system(rg_args(query), { cwd = root, text = true, timeout = timeout_ms() }):wait()
+  return parse_rg(res, limit)
+end
+
+-- Async twin of M.rg. Same argv/timeout; parse + cb run on the main loop
+-- (parse_rg uses path.is_ignored -> vim.fn, banned in on_exit's fast-event
+-- context). Failures degrade to {} and cb always runs.
+function M.rg_async(root, query, limit, cb)
+  if not query or query == "" then cb({}); return end
+  limit = limit or 40
+  local ok = pcall(vim.system, rg_args(query), { cwd = root, text = true, timeout = timeout_ms() }, function(res)
+    vim.schedule(function() cb(parse_rg(res, limit)) end)
+  end)
+  if not ok then cb({}) end
 end
 
 function M.goal_terms(goal)
@@ -51,21 +71,44 @@ end
 
 local MAX_GOAL_TERMS = 8
 
+local function add_goal_hits(out, seen, hits, term)
+  for _, hit in ipairs(hits) do
+    local key = hit.file .. ":" .. hit.lnum
+    if not seen[key] then
+      seen[key] = true
+      hit.term = term
+      table.insert(out, hit)
+    end
+  end
+end
+
 function M.related_to_goal(root, goal, limit)
   local out, seen = {}, {}
   local terms = M.goal_terms(goal)
   for i, term in ipairs(terms) do
     if i > MAX_GOAL_TERMS then break end
-    for _, hit in ipairs(M.rg(root, term, limit or 20)) do
-      local key = hit.file .. ":" .. hit.lnum
-      if not seen[key] then
-        seen[key] = true
-        hit.term = term
-        table.insert(out, hit)
-      end
-    end
+    add_goal_hits(out, seen, M.rg(root, term, limit or 20), term)
   end
   return out
+end
+
+-- Async twin of related_to_goal. Terms run one rg at a time (bounded to
+-- MAX_GOAL_TERMS) so a snapshot never fans out into parallel rg processes.
+function M.related_to_goal_async(root, goal, limit, cb)
+  local out, seen = {}, {}
+  local terms = M.goal_terms(goal)
+  local max_terms = math.min(#terms, MAX_GOAL_TERMS)
+  local i = 0
+  local function next_term()
+    i = i + 1
+    if i > max_terms then cb(out); return end
+    local term = terms[i]
+    M.rg_async(root, term, limit or 20, function(hits)
+      add_goal_hits(out, seen, hits, term)
+      next_term()
+    end)
+  end
+  next_term()
 end
 
 function M.symbols(bufnr)

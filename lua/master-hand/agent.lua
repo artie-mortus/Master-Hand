@@ -4,6 +4,9 @@ local state = require("master-hand.state")
 
 local M = {}
 local sync_timer = nil
+-- Live vim.system handles for dispatched agents, keyed by handle. Entries are
+-- removed when the process exits on its own; stop_all() kills the rest.
+local live_handles = {}
 
 local function one_line(value)
   return tostring(value or ""):gsub("%s+", " ")
@@ -116,6 +119,16 @@ function M.stop_sync_poll()
   end
 end
 
+-- Kill tracked agent processes and stop polling. Called on VimLeavePre so
+-- dispatched agents do not outlive the editor session.
+function M.stop_all()
+  M.stop_sync_poll()
+  for handle in pairs(live_handles) do
+    pcall(handle.kill, handle, 15)
+  end
+  live_handles = {}
+end
+
 function M.start_sync_poll()
   local opts = config.get().agent or {}
   if opts.auto_checktime == false then return end
@@ -166,11 +179,21 @@ function M.dispatch(suggestion, cb)
     return { argv = argv, prompt = prompt }
   end
 
-  local ok, handle = pcall(vim.system, argv, { cwd = root, text = true }, vim.schedule_wrap(function(res)
+  local sys_opts = { cwd = root, text = true }
+  -- Handoffs are long-running by design: no default kill timeout. Users can
+  -- bound them with agent.timeout_ms when they want a hard cap.
+  if tonumber(opts.timeout_ms) then sys_opts.timeout = tonumber(opts.timeout_ms) end
+  local handle
+  local ok, handle_or_err = pcall(vim.system, argv, sys_opts, vim.schedule_wrap(function(res)
+    if handle then live_handles[handle] = nil end
     M.sync()
     if cb then cb(res and res.code == 0, res) end
   end))
-  if not ok then return nil, handle end
+  if not ok then return nil, handle_or_err end
+  handle = handle_or_err
+  -- schedule_wrap defers the exit callback to the main loop, so this tracking
+  -- write always lands before the callback can untrack the handle.
+  live_handles[handle] = true
   M.start_sync_poll()
   return { argv = argv, prompt = prompt, handle = handle }
 end

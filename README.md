@@ -468,6 +468,7 @@ require("master-hand").setup({
   agent = {
     enabled = true, -- handoff only happens after approving a suggestion
     adapter = "auto",
+    timeout_ms = nil, -- optional kill timeout for dispatched agent processes; nil = unlimited (handoffs are long-running)
     auto_checktime = true,
   },
   storage = { enabled = true },

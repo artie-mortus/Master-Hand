@@ -358,10 +358,22 @@ local async_calls = {}
 providers.complete_async = function(messages, _, cb) table.insert(async_calls, { messages = messages, cb = cb }) end
 state.set_suggestions({})
 require("master-hand").setup({ proactivity = "passive", storage = { enabled = false }, model = { provider = "auto" } })
+-- Typing-triggered suggest path must never block: any handle:wait() during the
+-- async suggest chain is a freeze regression, so make it fatal here.
+local waitfree_system = vim.system
+vim.system = function(...)
+  local handle = waitfree_system(...)
+  return setmetatable({}, { __index = function(_, key)
+    if key == "wait" then error("blocking :wait() reached the async suggest path") end
+    local value = handle[key]
+    if type(value) == "function" then return function(_, ...) return value(handle, ...) end end
+    return value
+  end })
+end
 require("master-hand").open()
 assert(state.data.loading, ":MH shows loading state while model runs")
-assert(#state.data.suggestions > 0, ":MH shows local suggestions while model runs")
-assert(vim.wait(1000, function() return #async_calls == 1 end), ":MH scans project then starts async goal inference")
+assert(vim.wait(2000, function() return #state.data.suggestions > 0 end), ":MH shows local suggestions from async quick snapshot while model runs")
+assert(vim.wait(10000, function() return #async_calls == 1 end), ":MH scans project then starts async goal inference")
 assert(async_calls[1].messages[1].content:match("Infer steering intent"), ":MH starts async goal inference")
 assert(state.data.last_context.repo_index and state.data.last_context.repo_index.files_seen > 0, ":MH async path scans project before model goal inference")
 async_calls[1].cb(vim.json.encode({ long_term_goal = "Async long goal", short_term_goal = "Async short goal", confidence = 0.9 }))
@@ -370,6 +382,7 @@ assert(#async_calls == 2, ":MH starts async model suggestions after goal inferen
 async_calls[2].cb("[]")
 assert(not state.data.loading, "loading stops after async model finishes")
 assert_eq(state.data.short_term_goal, "Async short goal", "async path refines short-term goal")
+vim.system = waitfree_system
 require("master-hand").close()
 
 providers.complete = function() return nil, "boom" end
@@ -477,5 +490,58 @@ assert_eq(config.get().model.provider, "ollama", "interactive picker sets chosen
 assert_eq(config.get().model.name, "qwen3-coder:latest", "interactive picker sets chosen model name")
 vim.ui.select, vim.ui.input = orig_select, orig_input
 providers.list_ollama_models = orig_list
+
+-- snapshot_async mirrors the sync snapshot shape and coalesces concurrent runs.
+local context_mod = require("master-hand.context")
+config.setup({ storage = { enabled = false } })
+state.data.root = vim.fn.getcwd()
+local sync_snap = context_mod.snapshot({ quick = false })
+local async_snap, async_snap2
+context_mod.snapshot_async({ quick = false }, function(snap) async_snap = snap end)
+context_mod.snapshot_async({ quick = false }, function(snap) async_snap2 = snap end)
+assert(async_snap == nil and async_snap2 == nil, "snapshot_async never completes synchronously")
+assert(vim.wait(15000, function() return async_snap ~= nil and async_snap2 ~= nil end), "snapshot_async eventually calls every queued callback")
+assert(async_snap == async_snap2, "back-to-back snapshot_async requests coalesce onto one in-flight run")
+local function key_set(t)
+  local keys = {}
+  for key in pairs(t) do keys[key] = true end
+  return keys
+end
+assert_eq(key_set(async_snap), key_set(sync_snap), "async snapshot has the same top-level keys as sync snapshot")
+assert(async_snap.repo_index.files_seen and async_snap.repo_index.files_seen > 0, "async snapshot builds the repo index without blocking git calls")
+assert_eq(state.data.last_context, async_snap, "async snapshot caches last_context for UI consumers")
+
+-- Agent handoff lifecycle: track handles, stop_all kills, natural exit untracks.
+local killed, dispatch_opts, exit_cb = {}, nil, nil
+original_system = vim.system
+vim.system = function(_, opts_arg, cb_arg)
+  dispatch_opts = opts_arg
+  exit_cb = cb_arg
+  return {
+    pid = 4242,
+    kill = function(_, sig) table.insert(killed, sig) end,
+    wait = function() return { code = 0, signal = 0, stdout = vim.fn.getcwd() .. "\n", stderr = "" } end,
+  }
+end
+require("master-hand").setup({ proactivity = "passive", storage = { enabled = false }, agent = { enabled = true, command = { "fake-agent", "{prompt}" }, auto_checktime = false } })
+local handoff = agent.dispatch(schema.suggestion({ title = "Long-running handoff" }))
+assert(handoff and handoff.handle, "dispatch returns the live agent handle")
+assert_eq(dispatch_opts.timeout, nil, "agent handoff has no kill timeout by default")
+agent.stop_all()
+assert_eq(killed, { 15 }, "stop_all kills tracked agent processes")
+agent.stop_all()
+assert_eq(killed, { 15 }, "stop_all clears tracked handles after killing")
+
+killed = {}
+require("master-hand").setup({ proactivity = "passive", storage = { enabled = false }, agent = { enabled = true, command = { "fake-agent", "{prompt}" }, timeout_ms = 1234, auto_checktime = false } })
+local exited = false
+handoff = agent.dispatch(schema.suggestion({ title = "Bounded handoff" }), function() exited = true end)
+assert(handoff and handoff.handle, "bounded dispatch returns the live agent handle")
+assert_eq(dispatch_opts.timeout, 1234, "agent.timeout_ms bounds the spawned agent process")
+exit_cb({ code = 0, signal = 0, stdout = "", stderr = "" })
+assert(vim.wait(1000, function() return exited end), "agent exit callback runs on the main loop")
+agent.stop_all()
+assert_eq(killed, {}, "processes that exit on their own leave the tracking table")
+vim.system = original_system
 
 print("master-hand tests ok")
