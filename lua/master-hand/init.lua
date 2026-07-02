@@ -54,7 +54,7 @@ local function start_loading(message)
   state.data.loading = true
   state.data.loading_message = message or "Loading model suggestions..."
   state.data.loading_frame = 1
-  loading_timer = vim.loop.new_timer()
+  loading_timer = vim.uv.new_timer()
   loading_timer:start(80, 80, vim.schedule_wrap(function()
     state.data.loading_frame = (state.data.loading_frame % 10) + 1
     if ui.is_open() then ui.render() end
@@ -74,7 +74,7 @@ local function debounce_suggest()
   local opts = config.get()
   if opts.proactivity == "passive" then return end
   stop_timer()
-  timer = vim.loop.new_timer()
+  timer = vim.uv.new_timer()
   timer:start(opts.suggestion_frequency_ms, 0, vim.schedule_wrap(refresh_suggestions))
 end
 
@@ -103,7 +103,7 @@ end
 function M.setup(opts)
   config.setup(opts)
   state.restore(storage.load())
-  state.data.root = vim.loop.cwd()
+  state.data.root = vim.uv.cwd()
   setup_autocmds()
 end
 

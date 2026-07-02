@@ -10,13 +10,19 @@ local M = {}
 local function unsafe(diff)
   if not diff or diff == "" then return "empty diff" end
   if diff:find("GIT binary patch", 1, true) then return "binary patches blocked" end
+  -- Git quotes paths with special characters (`"a/..."`); the extractors below
+  -- cannot parse those, so reject rather than validate a truncated path.
+  if diff:match('diff %-%-git "') or diff:match('[%+%-][%+%-][%+%-] "') or diff:match('rename to "') or diff:match('copy to "') then
+    return "quoted paths blocked"
+  end
   local paths = {}
   for a, b in diff:gmatch("diff %-%-git a/([^%s]+) b/([^%s]+)") do table.insert(paths, a); table.insert(paths, b) end
   for p in diff:gmatch("[%+%-][%+%-][%+%-] [ab]/([^\n]+)") do table.insert(paths, p) end
   for p in diff:gmatch("rename to ([^\n]+)") do table.insert(paths, p) end
   for p in diff:gmatch("copy to ([^\n]+)") do table.insert(paths, p) end
   for _, p in ipairs(paths) do
-    p = p:gsub("%s.*$", "")
+    -- Strip only the trailing tab+metadata git appends; spaces are legal in paths.
+    p = p:gsub("\t.*$", "")
     if p:sub(1,1) == "/" or p:find("%.%./") or path.is_ignored(p, config.get().ignore) then return "unsafe path: " .. p end
   end
 end

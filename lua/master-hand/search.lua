@@ -3,6 +3,11 @@ local config = require("master-hand.config")
 local path = require("master-hand.path")
 local M = {}
 
+-- Search runs from context building; keep it short-bounded like git, never model-length.
+local function timeout_ms()
+  return math.min(config.get().commands.timeout_ms or 10000, 3000)
+end
+
 local function ignored_args()
   local args = {}
   for _, pat in ipairs(config.get().ignore or {}) do
@@ -17,8 +22,10 @@ function M.rg(root, query, limit)
   limit = limit or 40
   local args = { "rg", "--line-number", "--column", "--no-heading", "--smart-case", "--max-count", "5" }
   vim.list_extend(args, ignored_args())
+  -- -e keeps a query starting with "-" from being parsed as an rg flag.
+  table.insert(args, "-e")
   table.insert(args, query)
-  local res = vim.system(args, { cwd = root, text = true, timeout = config.get().model.timeout_ms }):wait()
+  local res = vim.system(args, { cwd = root, text = true, timeout = timeout_ms() }):wait()
   local out = {}
   if res.code ~= 0 and (res.stdout or "") == "" then return out end
   for line in (res.stdout or ""):gmatch("[^\n]+") do
@@ -42,9 +49,13 @@ function M.goal_terms(goal)
   return terms
 end
 
+local MAX_GOAL_TERMS = 8
+
 function M.related_to_goal(root, goal, limit)
   local out, seen = {}, {}
-  for _, term in ipairs(M.goal_terms(goal)) do
+  local terms = M.goal_terms(goal)
+  for i, term in ipairs(terms) do
+    if i > MAX_GOAL_TERMS then break end
     for _, hit in ipairs(M.rg(root, term, limit or 20)) do
       local key = hit.file .. ":" .. hit.lnum
       if not seen[key] then

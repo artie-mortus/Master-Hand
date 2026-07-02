@@ -79,6 +79,17 @@ ui.close()
 vim.o.columns = old_columns
 config.setup({ storage = { enabled = false } })
 
+local diff_check = require("master-hand.diff")
+local applied, apply_err = diff_check.apply(vim.fn.getcwd(), 'diff --git "a/x y" "b/x y"\n--- "a/x y"\n+++ "b/x y"\n')
+assert(not applied and apply_err:match("quoted paths blocked"), "quoted diff paths rejected")
+applied, apply_err = diff_check.apply(vim.fn.getcwd(), "diff --git a/ok.lua b/ok.lua\n--- a/.env.local\n+++ b/.env.local\n")
+assert(not applied and apply_err:match("unsafe path: %.env%.local"), "ignored paths with tab-less headers still caught")
+
+local tmux_argv = agent.argv({ adapter = "tmux", target = "sess:1.2" }, "line one\nline two", "/tmp/repo")
+assert_eq(tmux_argv[5], "-l", "tmux send-keys sends prompt literally")
+assert(tmux_argv[6] == "line one line two", "tmux prompt collapsed to one line")
+assert(vim.tbl_contains(tmux_argv, "C-m"), "tmux sends Enter as separate key")
+
 local ok, err = runner.validate({ "rm", "-rf", "." })
 assert(not ok and err:match("blocked"), "rm blocked")
 ok, err = runner.validate({ "git", "clean", "-fd" })
@@ -113,6 +124,22 @@ end
 content, perr = providers.complete({}, { provider = "openai_compatible", endpoint = "http://example.invalid", name = "x" })
 assert_eq(content, "[]", "provider returns content")
 assert_eq(perr, nil, "successful provider call has nil error")
+vim.system = function()
+  return { wait = function() return { code = 0, signal = 0, stdout = "null", stderr = "" } end }
+end
+content, perr = providers.complete({}, { provider = "openai_compatible", endpoint = "http://example.invalid", name = "x" })
+assert(not content and perr:match("unexpected JSON type"), "JSON null response returns error instead of crashing")
+local secret_call = nil
+vim.system = function(argv_arg, opts_arg)
+  secret_call = { argv = argv_arg, opts = opts_arg }
+  return { wait = function() return { code = 0, signal = 0, stdout = '{"choices":[{"message":{"content":"ok"}}]}', stderr = "" } end }
+end
+vim.env.MASTER_HAND_TEST_SECRET_KEY = "sk-super-secret"
+content, perr = providers.complete({}, { provider = "openai_compatible", endpoint = "http://example.invalid", name = "x", api_key_env = "MASTER_HAND_TEST_SECRET_KEY" })
+assert_eq(content, "ok", "provider call with key succeeds")
+assert(not table.concat(secret_call.argv, " "):match("sk%-super%-secret"), "api key never appears in process argv")
+assert(secret_call.opts.stdin and secret_call.opts.stdin:match("sk%-super%-secret"), "api key passes via curl config on stdin")
+vim.env.MASTER_HAND_TEST_SECRET_KEY = nil
 local routed_calls = {}
 vim.system = function(argv_arg)
   table.insert(routed_calls, table.concat(argv_arg, " "))

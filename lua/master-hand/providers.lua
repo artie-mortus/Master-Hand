@@ -3,11 +3,21 @@ local config = require("master-hand.config")
 local auth = require("master-hand.auth")
 local M = {}
 
+-- Auth headers go through `--config -` on stdin so API keys never appear in the
+-- process argv (visible to any local user via ps).
 local function curl_cmd(url, body, headers)
   local cmd = { "curl", "-sS", "-X", "POST", url, "-H", "Content-Type: application/json" }
-  for _, header in ipairs(headers or {}) do vim.list_extend(cmd, { "-H", header }) end
+  local stdin = nil
+  if headers and #headers > 0 then
+    local lines = {}
+    for _, header in ipairs(headers) do
+      table.insert(lines, string.format('header = "%s"', header:gsub("\\", "\\\\"):gsub('"', '\\"')))
+    end
+    stdin = table.concat(lines, "\n") .. "\n"
+    vim.list_extend(cmd, { "--config", "-" })
+  end
   vim.list_extend(cmd, { "-d", vim.json.encode(body) })
-  return cmd
+  return cmd, stdin
 end
 
 local function decode_response(res, timeout_ms)
@@ -20,15 +30,18 @@ local function decode_response(res, timeout_ms)
   end
   local ok, decoded = pcall(vim.json.decode, res.stdout or "")
   if not ok then return nil, "provider returned invalid JSON" end
+  if type(decoded) ~= "table" then return nil, "provider returned unexpected JSON type" end
   return decoded
 end
 
 local function post_json(url, body, headers, timeout_ms)
-  return decode_response(vim.system(curl_cmd(url, body, headers), { text = true, timeout = timeout_ms }):wait(), timeout_ms)
+  local cmd, stdin = curl_cmd(url, body, headers)
+  return decode_response(vim.system(cmd, { text = true, stdin = stdin, timeout = timeout_ms }):wait(), timeout_ms)
 end
 
 local function post_json_async(url, body, headers, timeout_ms, cb)
-  vim.system(curl_cmd(url, body, headers), { text = true, timeout = timeout_ms }, function(res)
+  local cmd, stdin = curl_cmd(url, body, headers)
+  vim.system(cmd, { text = true, stdin = stdin, timeout = timeout_ms }, function(res)
     local decoded, err = decode_response(res, timeout_ms)
     vim.schedule(function() cb(decoded, err) end)
   end)

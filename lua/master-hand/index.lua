@@ -24,7 +24,7 @@ end
 -- Read only small file heads; indexing should never pull huge files into memory.
 local function read_head(root, file, max_bytes)
   local full = root .. "/" .. file
-  local stat = vim.loop.fs_stat(full)
+  local stat = vim.uv.fs_stat(full)
   if not stat or stat.type ~= "file" then return nil, 0 end
   if stat.size > max_bytes then return nil, stat.size end
   local ok, lines = pcall(vim.fn.readfile, full, "", 400)

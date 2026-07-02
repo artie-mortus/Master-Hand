@@ -221,9 +221,12 @@ function M.close()
 end
 
 function M.suggestion_under_cursor()
-  local line = vim.api.nvim_win_get_cursor(0)[1]
+  if not M.buf or not vim.api.nvim_buf_is_valid(M.buf) then return nil end
+  local win = M.is_open() and M.win or vim.api.nvim_get_current_win()
+  if vim.api.nvim_win_get_buf(win) ~= M.buf then return nil end
+  local line = vim.api.nvim_win_get_cursor(win)[1]
   for i = line, 1, -1 do
-    local text = vim.api.nvim_buf_get_lines(0, i - 1, i, false)[1] or ""
+    local text = vim.api.nvim_buf_get_lines(M.buf, i - 1, i, false)[1] or ""
     local idx = tonumber(text:match("^(%d+)%."))
     if idx then return state.suggestion(idx) end
   end

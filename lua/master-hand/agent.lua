@@ -25,7 +25,7 @@ function M.prompt(suggestion)
   local files = table.concat(suggestion.files or {}, ", ")
   local lines = {
     "You are a coding agent launched by Master Hand from Neovim.",
-    "Repo root: " .. tostring(state.data.root or vim.loop.cwd()),
+    "Repo root: " .. tostring(state.data.root or vim.uv.cwd()),
     "",
     "Approved suggestion:",
     "Title: " .. one_line(suggestion.title),
@@ -73,7 +73,10 @@ local function default_command(opts, prompt, root)
   if adapter == "tmux" or (adapter == "auto" and vim.env.TMUX and (opts.target or vim.env.MASTER_HAND_TMUX_TARGET)) then
     local target = opts.target or vim.env.MASTER_HAND_TMUX_TARGET
     if not target or target == "" then return nil, "agent.target or MASTER_HAND_TMUX_TARGET required for tmux" end
-    return { "tmux", "send-keys", "-t", target, prompt, "C-m" }
+    -- send-keys types into the target pane: every newline acts as Enter, so a
+    -- multi-line prompt would execute line by line in a shell pane. Collapse to
+    -- one line and send literally (-l), with Enter as a separate command.
+    return { "tmux", "send-keys", "-t", target, "-l", one_line(prompt), ";", "send-keys", "-t", target, "C-m" }
   end
   if adapter == "zellij" or (adapter == "auto" and vim.env.ZELLIJ) then
     return { "zellij", "run", "--cwd", root, "--name", "Master Hand Agent", "--", exe, prompt }
@@ -114,12 +117,12 @@ function M.start_sync_poll()
   M.stop_sync_poll()
   local interval = tonumber(opts.checktime_interval_ms) or 2000
   local duration = tonumber(opts.checktime_duration_ms) or 120000
-  local stop_at = vim.loop.now() + duration
+  local stop_at = vim.uv.now() + duration
   run_checktime()
-  sync_timer = vim.loop.new_timer()
+  sync_timer = vim.uv.new_timer()
   sync_timer:start(interval, interval, vim.schedule_wrap(function()
     run_checktime()
-    if vim.loop.now() >= stop_at then M.stop_sync_poll() end
+    if vim.uv.now() >= stop_at then M.stop_sync_poll() end
   end))
 end
 
@@ -140,7 +143,7 @@ end
 function M.dispatch(suggestion, cb)
   local opts = config.get().agent or {}
   if not opts.enabled then return nil, "agent handoff disabled" end
-  local root = state.data.root or vim.loop.cwd()
+  local root = state.data.root or vim.uv.cwd()
   local prompt = M.prompt(suggestion)
   local argv, err = M.argv(opts, prompt, root)
   if not argv then return nil, err end

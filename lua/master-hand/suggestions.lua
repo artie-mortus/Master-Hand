@@ -50,7 +50,7 @@ local function code_context(snap)
   for _, file in ipairs(candidates) do
     if #out >= (opts.max_model_code_files or 8) then break end
     local full = (snap.root or "") .. "/" .. file
-    local stat = vim.loop.fs_stat(full)
+    local stat = vim.uv.fs_stat(full)
     if stat and stat.type == "file" and stat.size <= (opts.max_model_file_bytes or 12000) then
       local ok, lines = pcall(vim.fn.readfile, full, "", 500)
       if ok then table.insert(out, { file = file, text = table.concat(lines, "\n") }) end

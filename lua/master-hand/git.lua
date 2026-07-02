@@ -18,7 +18,7 @@ end
 function M.root()
   local out = vim.system({ "git", "rev-parse", "--show-toplevel" }, { text = true, timeout = timeout_ms() }):wait()
   if out.code == 0 then return vim.trim(out.stdout) end
-  return vim.loop.cwd()
+  return vim.uv.cwd()
 end
 
 function M.branch(root) return vim.trim(run(root, { "branch", "--show-current" })) end
