@@ -130,6 +130,7 @@ local function provider_items(snap, mode, local_suggestions, opts)
   snap = vim.deepcopy(snap)
   snap.code = code_context(snap)
   local content, err = providers.complete(prompts.suggestions(snap, mode, local_suggestions))
+  -- Drop the parse error; sync callers only consume the items list.
   local items = parse_provider_suggestions(content, err, model)
   return items
 end

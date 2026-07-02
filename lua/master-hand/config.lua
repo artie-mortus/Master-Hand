@@ -11,12 +11,6 @@ M.defaults = {
     diagnostics = true,
     git = true,
   },
-  permissions = {
-    auto_read = true,
-    require_edit_approval = true,
-    require_command_approval = true,
-    trusted_actions = {},
-  },
   ignore = {
     ".git/",
     "node_modules/",
@@ -39,7 +33,6 @@ M.defaults = {
     command = nil, -- CLI provider argv template; supports {prompt}
     login_command = nil,
     name = nil,
-    context_limit = 32000,
     timeout_ms = 60000,
     temperature = 0.2,
     max_tokens = 1200,
@@ -84,7 +77,6 @@ M.defaults = {
     width = 46,
     max_width_ratio = 0.45,
     side = "right",
-    show_diff_preview = true,
     highlights = {}, -- override MasterHand* sidebar highlight groups from setup()
   },
 }

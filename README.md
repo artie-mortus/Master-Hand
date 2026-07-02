@@ -12,13 +12,27 @@
 > [!WARNING]
 > Experimental plugin. Vibe-coded, lightly reviewed, and not yet hardened. Keep backups and review every approved action.
 
-## Quick Install
+## What Master Hand is
+
+Master Hand is not an autonomous coding agent. It is a helper layer you open when you want a second set of eyes: give it a goal, let local context and optional models suggest next steps, then choose what to do.
+
+| Feature | What it does |
+| --- | --- |
+| **Repo-aware next steps** | Combines buffers, diagnostics, git changes, recent edits, ripgrep hits, tree-sitter symbols, and a bounded repo index. |
+| **Approval boundary** | Suggestions are advisory; diffs, commands, and agent handoffs require explicit approval. |
+| **Model optional** | Works with local heuristics only, local Ollama, Ollama Cloud, OpenAI-compatible APIs, OpenRouter, Anthropic, Pi, or login-backed CLI subscriptions (Codex/Claude/Gemini). |
+| **Goal steering** | `:MHGoal` sets long-term direction; `:MHNext` pins the short-term next step, or Master Hand infers it from repo state. |
+| **Agent handoff** | Approved suggestions can go to pi, Codex, tmux, Zellij, a Neovim terminal, or a custom argv command. |
+
+## Install
+
+lazy.nvim:
 
 ```lua
--- lazy.nvim - minimal (passive mode, agent handoff after approval)
+-- minimal (passive mode, agent handoff after approval)
 { "artie-mortus/Master-Hand", name = "master-hand", cmd = { "MH", "MasterHand", "MHSuggest", "MHPlan", "MHSend" }, opts = {} }
 
--- lazy.nvim - recommended with explicit agent/model choices
+-- with explicit agent/model choices
 {
   "artie-mortus/Master-Hand",
   name = "master-hand",
@@ -31,104 +45,6 @@
       enabled = true,
       adapter = "auto",  -- "pi", "codex", "tmux", "zellij", "terminal"
     },
-  },
-}
-```
-
-Then `:MH` to open, or press `<leader>mh`.
-
-## What Master Hand is
-
-Master Hand is not an autonomous coding agent by default. It is a **deliberate helper layer for model use**: open it when you want a second set of eyes, give it a goal, let local context and optional models suggest next steps, then choose what to do.
-
-Think of it as an assistant that sits beside your editor and says: "here is likely useful help; want to act on it?" It keeps you in control.
-
-## Why use it?
-
-| Strength | What it does |
-| --- | --- |
-| **Repo-aware next steps** | Combines buffers, diagnostics, git changes, recent edits, ripgrep hits, tree-sitter symbols, and a bounded repo index. |
-| **Fast sidebar UX** | `:MH` opens immediately; model-backed suggestions load async with a spinner. |
-| **Intentional model use** | Built for times when you want AI help, not background autonomy. You open it, ask, review, then approve. |
-| **Safe automation boundary** | Suggestions are advisory by default; diffs, commands, and agent handoffs require explicit approval. |
-| **Model optional** | Works with local heuristics only, local Ollama, Ollama Cloud, OpenAI-compatible APIs, OpenRouter, Anthropic, Pi, or login-backed CLI subscriptions (Codex/Claude/Gemini). |
-| **Goal steering** | `:MHGoal` sets long-term direction; `:MHNext` can pin the short-term next step, or Master Hand infers it from repo state. |
-| **Agent handoff** | Approved suggestions can go to pi, Codex, tmux, Zellij, a Neovim terminal, or custom argv command. |
-
----
-
-<details open>
-<summary><strong>🚀 Quick start</strong></summary>
-
-```vim
-:MH                         " open sidebar; starts async suggestions if empty
-:MHSuggest                  " refresh suggestions
-:MHPlan                     " ask for plan-style suggestions
-:MHGoal Fix login redirect  " set long-term direction
-:MHNext Update auth docs      " optionally pin short-term next step
-:MHModel                    " show active model config
-:MHModelStatus              " test model connection
-:MHSend 1                   " send suggestion #1 to configured external agent
-:MHSync                     " refresh buffers after external edits
-```
-
-Sidebar keys:
-
-| Key | Action |
-| --- | --- |
-| `a` | Accept and send selected suggestion to external agent |
-| `d` | Dismiss suggestion |
-| `p` | Postpone suggestion |
-| `v` | View details |
-| `r` | Refresh suggestions |
-| `q` | Close sidebar |
-
-`a` sends the selected suggestion to the configured external coding agent and starts short-lived `:checktime` polling so Neovim notices saved edits. Set `agent.enabled = false` for feedback-only mode.
-
-Intentional flow: **open → ask/goal → read suggestions → approve only useful help**.
-
-</details>
-
-<details>
-<summary><strong>📦 Requirements</strong></summary>
-
-- Neovim 0.10+
-- `git` for status/diff context
-- Optional tools:
-  - `rg` for repo search
-  - tree-sitter parsers for symbol context
-  - `curl` for remote model providers
-  - `ollama` for local `provider = "auto"` / `provider = "ollama"`
-  - Optional login-backed/background CLIs (`pi`, `codex`, `claude`, or `gemini`) when using local/account tools instead of API keys
-  - `pi`, `codex`, `tmux`, or `zellij` for external agent handoff
-
-</details>
-
-<details open>
-<summary><strong>🧩 Installation</strong></summary>
-
-Lazy.nvim (copy-paste ready):
-
-```lua
-{
-  "artie-mortus/Master-Hand",
-  name = "master-hand",
-  cmd = { "MH", "MasterHand", "MHSuggest", "MHPlan" },
-  config = function()
-    require("master-hand").setup()
-  end,
-}
-```
-
-With options (passive mode, no auto-suggestions):
-
-```lua
-{
-  "artie-mortus/Master-Hand",
-  name = "master-hand",
-  cmd = { "MH", "MasterHand", "MHSuggest", "MHPlan" },
-  opts = {
-    proactivity = "passive",
   },
 }
 ```
@@ -152,17 +68,7 @@ vim-plug:
 Plug 'artie-mortus/Master-Hand', { 'on': ['MH', 'MasterHand'] }
 ```
 
-After install, run `:MH` to open.
-
-Default mode is intentionally quiet:
-
-```lua
-require("master-hand").setup({
-  proactivity = "passive", -- suggestions only when you run :MH, :MHSuggest, or :MHPlan
-})
-```
-
-Enable debounced suggestion refreshes after edits/diagnostics:
+Then `:MH` to open. Default mode is quiet: suggestions only when you run `:MH`, `:MHSuggest`, or `:MHPlan`. To refresh suggestions after edits/diagnostics instead:
 
 ```lua
 require("master-hand").setup({
@@ -172,10 +78,57 @@ require("master-hand").setup({
 })
 ```
 
+---
+
+<details open>
+<summary><strong>Quick start</strong></summary>
+
+```vim
+:MH                         " open sidebar; starts async suggestions if empty
+:MHSuggest                  " refresh suggestions
+:MHPlan                     " ask for plan-style suggestions
+:MHGoal Fix login redirect  " set long-term direction
+:MHNext Update auth docs    " optionally pin short-term next step
+:MHModel                    " show active model config
+:MHModelStatus              " test model connection
+:MHSend 1                   " send suggestion #1 to configured external agent
+:MHSync                     " refresh buffers after external edits
+```
+
+Sidebar keys:
+
+| Key | Action |
+| --- | --- |
+| `a` | Accept and send selected suggestion to external agent |
+| `d` | Dismiss suggestion |
+| `p` | Postpone suggestion |
+| `v` | View details |
+| `r` | Refresh suggestions |
+| `q` | Close sidebar |
+
+`a` sends the selected suggestion to the configured external coding agent and starts short-lived `:checktime` polling so Neovim notices saved edits. Set `agent.enabled = false` for feedback-only mode.
+
+Flow: **open → ask/goal → read suggestions → approve only useful help**.
+
 </details>
 
 <details>
-<summary><strong>🎛️ Configuration recipes</strong></summary>
+<summary><strong>Requirements</strong></summary>
+
+- Neovim 0.10+
+- `git` for status/diff context
+- Optional tools:
+  - `rg` for repo search
+  - tree-sitter parsers for symbol context
+  - `curl` for remote model providers
+  - `ollama` for local `provider = "auto"` / `provider = "ollama"`
+  - Login-backed CLIs (`pi`, `codex`, `claude`, or `gemini`) when using account login instead of API keys
+  - `pi`, `codex`, `tmux`, or `zellij` for external agent handoff
+
+</details>
+
+<details>
+<summary><strong>Configuration recipes</strong></summary>
 
 ### Sidebar layout and colors
 
@@ -217,32 +170,7 @@ require("master-hand").setup({
 
 ### Cloud-ranked local/cloud routing
 
-Use a cheap cloud model as a router, then run the chosen model. This spends a tiny cloud call to avoid sending every request to the highest-tier model.
-
-```lua
-require("master-hand").setup({
-  model = {
-    selection = "auto",
-    cloud_policy = "fallback", -- router sees local candidates first
-    ranking_model = {
-      provider = "openrouter",
-      name = "openai/gpt-4.1-mini",
-      api_key_env = "OPENROUTER_API_KEY",
-    },
-    ranked = {
-      { provider = "ollama", name = "qwen3-coder:latest", rank = 70, is_local = true },
-      { provider = "ollama-cloud", name = "gpt-oss:120b", rank = 90 },
-      { provider = "openrouter", name = "anthropic/claude-3.5-sonnet", rank = 95, api_key_env = "OPENROUTER_API_KEY" },
-    },
-  },
-})
-```
-
-Force one model and skip routing:
-
-```vim
-:MHModel fixed ollama qwen3-coder:latest
-```
+See [Models](#models) for the routing knobs and a full example.
 
 ### Account/subscription login (no API key)
 
@@ -261,7 +189,7 @@ Master Hand can use logged-in CLI tools instead of provider API keys:
 :MHAuth gemini login
 ```
 
-Login runs in background and lets provider CLI open a browser if needed. Later model suggestions call CLI in background/headless; no Pi/Codex/Claude/Gemini UI opens during suggestion generation. Pi model calls use `--no-tools --no-session` so they cannot edit files. Approved suggestions still use configured agent handoff (`pi`, tmux, terminal, etc.).
+Login runs in the background and lets the provider CLI open a browser if needed. Later model suggestions call the CLI headless; no Pi/Codex/Claude/Gemini UI opens during suggestion generation. Pi model calls use `--no-tools --no-session` so they cannot edit files. Approved suggestions still use the configured agent handoff (`pi`, tmux, terminal, etc.).
 
 For custom subscription CLIs, configure argv without shell strings:
 
@@ -304,7 +232,7 @@ require("master-hand").setup({
 </details>
 
 <details>
-<summary><strong>⌨️ Commands</strong></summary>
+<summary><strong>Commands</strong></summary>
 
 | Command | Alias | Description |
 | --- | --- | --- |
@@ -333,9 +261,7 @@ require("master-hand").setup({
 </details>
 
 <details>
-<summary><strong>🧠 Suggestion workflow</strong></summary>
-
-Suggestions are meant to support intentional model use, not replace judgment. You decide when to ask, what context to provide through goals, and which suggestions deserve action.
+<summary><strong>Suggestion workflow</strong></summary>
 
 Suggestions run in two stages:
 
@@ -345,26 +271,26 @@ Suggestions run in two stages:
 Proactivity modes:
 
 - `passive` — default. Only explicit commands generate suggestions.
-- `advisory`, `proactive`, `high_initiative` — currently share same safe behavior: editor events debounce suggestion refreshes, but still never edit files or run commands automatically.
+- `advisory`, `proactive`, `high_initiative` — currently share the same safe behavior: editor events debounce suggestion refreshes, but still never edit files or run commands automatically.
 
 Goal steering:
 
-- **Direction (long-term)** — broad user/project intent, usually set by `:MHGoal`. Example: “ship subscription login support.”
-- **Next step (short-term)** — immediate task, either inferred from open buffers/recent edits/changed files/diagnostics/model review or pinned with `:MHNext`. Example: “update provider docs and tests.”
+- **Direction (long-term)** — broad user/project intent, usually set by `:MHGoal`. Example: "ship subscription login support."
+- **Next step (short-term)** — immediate task, either inferred from open buffers/recent edits/changed files/diagnostics/model review or pinned with `:MHNext`. Example: "update provider docs and tests."
 - `:MHGoal <goal>` changes long-term direction only.
-- `:MHNext <goal>` pins short-term next step. Run `:MHNext` with no args to return short-term next step to inference.
-- Changing either goal clears stale suggestions; next `:MH`/`:MHSuggest` (or the open sidebar) regenerates suggestions steered by the new goals.
+- `:MHNext <goal>` pins the short-term next step. Run `:MHNext` with no args to return it to inference.
+- Changing either goal clears stale suggestions; the next `:MH`/`:MHSuggest` (or the open sidebar) regenerates suggestions steered by the new goals.
 
 </details>
 
 <details>
-<summary><strong>🤖 Models</strong></summary>
+<summary><strong>Models</strong></summary>
 
 With `provider = "auto"`, Master Hand uses local Ollama when available, preferring coder/code/Qwen models. If no model is reachable, local heuristic suggestions still work. Use `provider = "none"` to disable model calls.
 
-Ranked model routing uses a cloud model as the router. Master Hand sends a tiny candidate-selection prompt to `ranking_model` (or the highest-ranked cloud candidate), then runs the chosen local or cloud model. This lets a cheap cloud model decide when a higher-tier model is worth using.
+### Ranked routing
 
-Routing knobs:
+Ranked model routing uses a cloud model as the router. Master Hand sends a tiny candidate-selection prompt to `ranking_model` (or the highest-ranked cloud candidate), then runs the chosen local or cloud model. This lets a cheap cloud model decide when a higher-tier model is worth using.
 
 | Option | Meaning |
 | --- | --- |
@@ -391,7 +317,7 @@ require("master-hand").setup({
 })
 ```
 
-Runtime model switching:
+### Runtime model switching
 
 ```vim
 :MHModel                         " show current model
@@ -399,13 +325,13 @@ Runtime model switching:
 :MHModel none                    " disable model calls
 :MHModel qwen3-coder:latest      " infer local Ollama
 :MHModel ollama qwen3-coder:latest
-:MHModel fixed ollama qwen3-coder:latest " lock one singular model
-:MHModel selection=auto              " re-enable ranked routing
+:MHModel fixed ollama qwen3-coder:latest " lock one model, skip routing
+:MHModel selection=auto          " re-enable ranked routing
 :MHModel ollama-cloud gpt-oss:120b
-:MHModel pi                     " use Pi as read-only/background model provider
-:MHModel codex                  " use logged-in Codex subscription CLI
-:MHModel claude                 " use logged-in Claude subscription CLI
-:MHModel gemini                 " use logged-in Gemini CLI
+:MHModel pi                      " use Pi as read-only/background model provider
+:MHModel codex                   " use logged-in Codex subscription CLI
+:MHModel claude                  " use logged-in Claude subscription CLI
+:MHModel gemini                  " use logged-in Gemini CLI
 :MHModel openai gpt-4.1-mini
 :MHModel openrouter anthropic/claude-3.5-sonnet
 :MHModel anthropic claude-sonnet-4-20250514
@@ -418,7 +344,7 @@ Advanced key/value form:
 :MHModel provider=ollama-cloud model=gpt-oss:120b
 ```
 
-Auth helpers:
+### Auth helpers
 
 ```vim
 :MHAuth                         " show auth status for active provider
@@ -431,12 +357,12 @@ Auth helpers:
 :MHAuth clear                   " unset Master Hand's process-env key for active provider
 ```
 
-`:MHModel` and `:MHAuth` change runtime config for current Neovim session. Put model defaults in `setup()` for persistent config. Prefer subscription CLI login when available; otherwise use `env:VAR` or shell env vars so API keys do not enter command history.
+`:MHModel` and `:MHAuth` change runtime config for the current Neovim session. Put model defaults in `setup()` for persistent config. Prefer subscription CLI login when available; otherwise use `env:VAR` or shell env vars so API keys do not enter command history.
 
 </details>
 
 <details>
-<summary><strong>🛫 Agent handoff</strong></summary>
+<summary><strong>Agent handoff</strong></summary>
 
 Agent handoff is enabled by default. Accepting a suggestion sends it to an external agent. Disable if you want feedback-only mode.
 
@@ -496,7 +422,7 @@ After handoff, Master Hand runs `:checktime` for a short window so saved externa
 </details>
 
 <details>
-<summary><strong>🧾 Configuration reference</strong></summary>
+<summary><strong>Configuration reference</strong></summary>
 
 Defaults live in `lua/master-hand/config.lua`. Common options:
 
@@ -537,7 +463,6 @@ require("master-hand").setup({
     width = 46,
     max_width_ratio = 0.45,
     side = "right",
-    show_diff_preview = true,
     highlights = {},
   },
 })
@@ -562,7 +487,7 @@ MasterHandKeys
 </details>
 
 <details>
-<summary><strong>🔒 Safety model</strong></summary>
+<summary><strong>Safety model</strong></summary>
 
 - No automatic edits or command execution.
 - Accepting a suggestion dispatches to an external agent unless `agent.enabled = false`.
@@ -575,7 +500,7 @@ MasterHandKeys
 </details>
 
 <details>
-<summary><strong>✅ Testing</strong></summary>
+<summary><strong>Testing</strong></summary>
 
 From repo root:
 

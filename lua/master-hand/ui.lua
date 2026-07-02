@@ -205,12 +205,12 @@ function M.open()
   local map = function(lhs, rhs)
     vim.keymap.set("n", lhs, rhs, { buffer = M.buf, silent = true })
   end
-  map("q", require("master-hand.ui").close)
-  map("r", require("master-hand").suggest)
+  map("q", M.close)
+  map("r", function() require("master-hand").suggest() end)
   map("a", function() require("master-hand").accept_suggestion() end)
   map("d", function() require("master-hand").feedback("dismissed") end)
   map("p", function() require("master-hand").feedback("postponed") end)
-  map("v", require("master-hand.ui").view_selected)
+  map("v", M.view_selected)
 end
 
 function M.close()

@@ -22,16 +22,7 @@ function M.root()
 end
 
 function M.branch(root) return vim.trim(run(root, { "branch", "--show-current" })) end
-function M.status(root) return run(root, { "status", "--porcelain=v1" }) end
 local function status_z(root) return run(root, { "status", "--porcelain=v1", "-z" }) end
-
-function M.status_filtered(root)
-  local out = {}
-  for _, item in ipairs(M.changed_files(root)) do
-    table.insert(out, string.format("%s %s", item.status, item.file))
-  end
-  return table.concat(out, "\n")
-end
 
 function M.diff(root, file, max_bytes)
   local files = file and { file } or nil

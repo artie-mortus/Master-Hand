@@ -170,10 +170,4 @@ function M.dispatch(suggestion, cb)
   return { argv = argv, prompt = prompt, handle = handle }
 end
 
-function M.approve(index)
-  local suggestion = type(index) == "table" and index or state.suggestion(index)
-  if not suggestion then return nil, "no suggestion" end
-  return M.dispatch(suggestion)
-end
-
 return M
