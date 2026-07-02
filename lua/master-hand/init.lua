@@ -281,14 +281,127 @@ local function parse_model_args(args)
   return apply_model_defaults(update)
 end
 
-function M.model(args)
+-- Which picker label the current stored provider corresponds to (config normalizes
+-- openai->openai_compatible and ollama-cloud->ollama, so disambiguate by endpoint).
+local function current_provider_label()
+  local m = config.get().model or {}
+  if m.provider == "openai_compatible" then
+    if m.endpoint and not m.endpoint:match("api%.openai%.com") then return "openai_compatible" end
+    return "openai"
+  end
+  if m.provider == "ollama" then
+    if m.endpoint and m.endpoint:match("ollama%.com") then return "ollama-cloud" end
+    return "ollama"
+  end
+  return m.provider
+end
+
+-- Reuse the CLI parse path so picker choices share defaults with :MHModel args.
+local function apply_model(args)
   local update = parse_model_args(args)
   if update then
     config.set_model(update)
     state.set_suggestions({})
     ui.render()
   end
+  local summary = model_summary()
+  if auth.status(config.get().model):find("auth=missing", 1, true) then
+    summary = summary .. " — run :MHAuth " .. tostring(config.get().model.provider)
+  end
+  vim.notify("Master Hand model: " .. summary)
+end
+
+local function notify_current_model()
   vim.notify("Master Hand model: " .. model_summary())
+end
+
+local provider_choices = {
+  { value = "auto", desc = "auto — pick best available" },
+  { value = "none", desc = "none — disable model calls" },
+  { value = "ollama", desc = "ollama — local models" },
+  { value = "ollama-cloud", desc = "ollama-cloud — Ollama Cloud API" },
+  { value = "openai", desc = "openai — OpenAI-compatible API" },
+  { value = "anthropic", desc = "anthropic — Anthropic API" },
+  { value = "openrouter", desc = "openrouter — OpenRouter API" },
+  { value = "openai_compatible", desc = "openai_compatible — custom OpenAI-compatible endpoint" },
+  { value = "codex", desc = "codex — Codex CLI account login" },
+  { value = "claude", desc = "claude — Claude CLI account login" },
+  { value = "gemini", desc = "gemini — Gemini CLI account login" },
+  { value = "pi", desc = "pi — Pi read-only background model" },
+  { value = "cli", desc = "cli — custom CLI command" },
+}
+
+-- Providers whose model name is entered free-form via vim.ui.input.
+local input_providers = {
+  ["ollama-cloud"] = true,
+  openai = true,
+  anthropic = true,
+  openrouter = true,
+  openai_compatible = true,
+  cli = true,
+}
+
+local function pick_model_name_input(provider)
+  local default = current_provider_label() == provider and (config.get().model or {}).name or ""
+  vim.ui.input({ prompt = "Model name (empty = default): ", default = default }, function(input)
+    -- Empty or cancelled input applies the provider only.
+    if not input or input == "" then apply_model({ provider }) else apply_model({ provider, input }) end
+  end)
+end
+
+local function pick_ollama_model()
+  providers.list_ollama_models(function(names)
+    if not names or #names == 0 then
+      vim.ui.input({ prompt = "Ollama model name (empty = auto-pick): " }, function(input)
+        if not input or input == "" then apply_model({ "ollama" }) else apply_model({ "ollama", input }) end
+      end)
+      return
+    end
+    local auto = "(auto-pick best local model)"
+    local items = { auto }
+    vim.list_extend(items, names)
+    vim.ui.select(items, { prompt = "Ollama model" }, function(choice)
+      if not choice then notify_current_model(); return end
+      if choice == auto then apply_model({ "ollama" }) else apply_model({ "ollama", choice }) end
+    end)
+  end)
+end
+
+local function on_provider_chosen(provider)
+  if provider == "ollama" then
+    pick_ollama_model()
+  elseif input_providers[provider] then
+    pick_model_name_input(provider)
+  else
+    apply_model({ provider })
+  end
+end
+
+local function open_model_picker()
+  local current = current_provider_label()
+  vim.ui.select(provider_choices, {
+    prompt = "Master Hand model (" .. model_summary() .. ")",
+    format_item = function(item)
+      if item.value == current then return item.desc .. "  (current)" end
+      return item.desc
+    end,
+  }, function(choice)
+    if not choice then notify_current_model(); return end
+    on_provider_chosen(choice.value)
+  end)
+end
+
+function M.model(args)
+  args = args or {}
+  if #args == 0 then
+    open_model_picker()
+    return
+  end
+  if args[1] == "show" then
+    notify_current_model()
+    return
+  end
+  apply_model(args)
 end
 
 local function current_model_with(update)

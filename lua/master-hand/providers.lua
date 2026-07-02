@@ -182,7 +182,10 @@ local function openrouter_async(model, messages, cb)
   openai_compatible_async(model, messages, cb)
 end
 
-local function pick_ollama_model(stdout)
+-- Parse `ollama list` stdout into installed model names, preferred coder/code/qwen
+-- names first (preserving their listed order), then the rest. pick_ollama_model
+-- takes the first; completion/pickers use the full list.
+function M.parse_ollama_names(stdout)
   local preferred, fallback = {}, {}
   for line in (stdout or ""):gmatch("[^\n]+") do
     local name = line:match("^(%S+)")
@@ -194,7 +197,24 @@ local function pick_ollama_model(stdout)
       end
     end
   end
-  return preferred[1] or fallback[1]
+  local names = {}
+  for _, name in ipairs(preferred) do table.insert(names, name) end
+  for _, name in ipairs(fallback) do table.insert(names, name) end
+  return names
+end
+
+local function pick_ollama_model(stdout)
+  return M.parse_ollama_names(stdout)[1]
+end
+
+-- Async list of installed ollama model names; cb(names_or_nil) runs on the main loop.
+function M.list_ollama_models(cb)
+  local proc = spawn({ "ollama", "list" }, { text = true, timeout = 3000 }, function(res)
+    vim.schedule(function()
+      cb(res.code == 0 and M.parse_ollama_names(res.stdout) or nil)
+    end)
+  end)
+  if not proc then vim.schedule(function() cb(nil) end) end
 end
 
 local function local_ollama_model()
@@ -206,12 +226,9 @@ local function local_ollama_model()
 end
 
 local function local_ollama_model_async(cb)
-  local proc = spawn({ "ollama", "list" }, { text = true, timeout = 3000 }, function(res)
-    vim.schedule(function()
-      cb(res.code == 0 and pick_ollama_model(res.stdout) or nil)
-    end)
+  M.list_ollama_models(function(names)
+    cb(names and names[1] or nil)
   end)
-  if not proc then vim.schedule(function() cb(nil) end) end
 end
 
 local function ollama_body(model, messages)

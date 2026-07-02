@@ -5,21 +5,14 @@ end
 vim.g.loaded_master_hand = 1
 
 local mh = require("master-hand")
+local completion = require("master-hand.complete")
 
-local function complete_from(items, arglead)
-  local out = {}
-  for _, item in ipairs(items) do
-    if item:find(arglead, 1, true) == 1 then table.insert(out, item) end
-  end
-  return out
-end
-
-local function model_complete(arglead)
-  return complete_from({ "auto", "fixed", "none", "ollama", "ollama-cloud", "openai", "openrouter", "anthropic", "openai_compatible", "codex", "claude", "gemini", "pi", "cli", "provider=", "model=", "selection=", "cloud_policy=", "ranking_max_tokens=", "endpoint=", "api_key_env=", "api_key=", "executable=", "command=", "login_command=" }, arglead)
+local function model_complete(arglead, cmdline, cursorpos)
+  return completion.model_complete(arglead, cmdline, cursorpos)
 end
 
 local function auth_complete(arglead)
-  return complete_from({ "openai", "openrouter", "anthropic", "ollama-cloud", "codex", "claude", "gemini", "pi", "cli", "login", "env:OPENAI_API_KEY", "env:OPENROUTER_API_KEY", "env:ANTHROPIC_API_KEY", "env:OLLAMA_API_KEY", "clear" }, arglead)
+  return completion.auth_complete(arglead)
 end
 
 local commands = {

@@ -383,4 +383,55 @@ require("master-hand").setup({ proactivity = "passive", storage = { enabled = fa
 local sent, send_err = agent.dispatch(schema.suggestion({ title = "Missing terminal agent" }))
 assert(not sent and send_err:match("agent executable not found"), "missing terminal agent returns clean error")
 
+-- Position-aware :MHModel completion.
+local completion = require("master-hand.complete")
+local first_arg = completion.model_complete("", ":MHModel ", 9)
+assert(vim.tbl_contains(first_arg, "ollama") and vim.tbl_contains(first_arg, "auto"), "first arg completes providers")
+assert(vim.tbl_contains(first_arg, "show") and vim.tbl_contains(first_arg, "fixed"), "first arg offers show/fixed")
+assert(vim.tbl_contains(first_arg, "provider="), "first arg offers key= stubs")
+assert_eq(completion.model_complete("selection=a", ":MHModel selection=a", 20), { "selection=auto" }, "selection= value completion")
+local provider_vals = completion.model_complete("provider=o", ":MHModel provider=o", 19)
+assert(vim.tbl_contains(provider_vals, "provider=ollama") and vim.tbl_contains(provider_vals, "provider=openai"), "provider= completes provider values")
+assert_eq(completion.model_complete("cloud_policy=b", ":MHModel cloud_policy=b", 23), { "cloud_policy=best" }, "cloud_policy= value completion")
+assert_eq(completion.model_complete("endpoint=x", ":MHModel endpoint=x", 19), {}, "non-enumerated key= has no value completion")
+completion.set_ollama_cache({ "qwen3-coder:latest", "llama3:latest" })
+assert_eq(completion.model_complete("qw", ":MHModel ollama qw", 19), { "qwen3-coder:latest" }, "ollama second arg uses injected cache")
+assert_eq(completion.model_complete("qw", ":MHModel fixed ollama qw", 25), { "qwen3-coder:latest" }, "fixed recurses into ollama model completion")
+assert_eq(completion.model_complete("", ":MHModel openai ", 16), {}, "second arg for non-ollama provider has no positional completion")
+
+-- parse_ollama_names ranks coder/code/qwen first and drops the header row.
+local ollama_names = providers.parse_ollama_names(table.concat({
+  "NAME                 ID      SIZE",
+  "llama3:latest        aaa     4GB",
+  "qwen3-coder:latest   bbb     9GB",
+  "mistral:latest       ccc     4GB",
+}, "\n"))
+assert_eq(ollama_names[1], "qwen3-coder:latest", "parse_ollama_names prefers coder/qwen model first")
+assert_eq(#ollama_names, 3, "parse_ollama_names excludes header row")
+assert(vim.tbl_contains(ollama_names, "llama3:latest") and vim.tbl_contains(ollama_names, "mistral:latest"), "parse_ollama_names lists all installed models")
+
+-- :MHModel show prints summary without opening the interactive picker.
+local orig_select, orig_input = vim.ui.select, vim.ui.input
+vim.ui.select = function() error(":MHModel show must not open the picker") end
+vim.ui.input = function() error(":MHModel show must not prompt for input") end
+mh.model({ "show" })
+vim.ui.select, vim.ui.input = orig_select, orig_input
+
+-- Interactive picker apply path: choose ollama then a specific installed model.
+local orig_list = providers.list_ollama_models
+providers.list_ollama_models = function(cb) cb({ "qwen3-coder:latest", "llama3:latest" }) end
+vim.ui.select = function(items, _, on_choice)
+  if type(items[1]) == "table" then
+    for _, item in ipairs(items) do if item.value == "ollama" then on_choice(item); return end end
+  else
+    on_choice("qwen3-coder:latest")
+  end
+end
+vim.ui.input = function() error("picker must not prompt for input when a model is selected") end
+mh.model({})
+assert_eq(config.get().model.provider, "ollama", "interactive picker sets chosen provider")
+assert_eq(config.get().model.name, "qwen3-coder:latest", "interactive picker sets chosen model name")
+vim.ui.select, vim.ui.input = orig_select, orig_input
+providers.list_ollama_models = orig_list
+
 print("master-hand tests ok")

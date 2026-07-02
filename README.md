@@ -244,7 +244,7 @@ require("master-hand").setup({
 | `:MasterHandSuggest` | `:MHSuggest` | Refresh suggestions asynchronously |
 | `:MasterHandModelSuggest` | `:MHModelSuggest` | Alias for `:MHSuggest` |
 | `:MasterHandStatus` | `:MHStatus` | Print cached context summary |
-| `:MasterHandModel [args]` | `:MHModel [args]` | Show/change runtime model config |
+| `:MasterHandModel [args]` | `:MHModel [args]` | Open interactive model picker (no args); `show` prints config; args change it directly. Tab completion is context-aware |
 | `:MasterHandAuth [provider] [login\|env:VAR\|key]` | `:MHAuth [provider] [login\|env:VAR\|key]` | Show/set AI provider auth for current Neovim session |
 | `:MasterHandModelStatus` | `:MHModelStatus` | Test configured model connection |
 | `:MasterHandContext` | `:MHContext` | Show cached context snapshot |
@@ -319,8 +319,16 @@ require("master-hand").setup({
 
 ### Runtime model switching
 
+Run bare `:MHModel` to open an interactive picker: choose a provider, then (for
+Ollama) pick from installed models or (for API/CLI providers) type a model name.
+Use `:MHModel show` to print the active config without opening the picker. Tab
+completion is context-aware — it completes provider names and `key=` values
+(`provider=`, `selection=`, `cloud_policy=`), and installed Ollama model names as
+the second argument after `ollama`.
+
 ```vim
-:MHModel                         " show current model
+:MHModel                         " open interactive model picker
+:MHModel show                    " print current model config (no picker)
 :MHModel auto                    " local Ollama auto-pick
 :MHModel none                    " disable model calls
 :MHModel qwen3-coder:latest      " infer local Ollama
