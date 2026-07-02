@@ -20,10 +20,15 @@ local login_command_by_provider = {
   gemini = { "gemini", "auth", "login" },
 }
 
-local function split_command(command)
-  if type(command) == "table" then return vim.deepcopy(command) end
-  if type(command) == "string" and command ~= "" then return vim.split(command, "%s+", { trimempty = true }) end
-  return nil
+local function argv_template(command)
+  if command == nil then return nil end
+  if type(command) == "string" then return nil, "login_command must be an argv table (list of strings)" end
+  if type(command) ~= "table" or not command[1] then return nil, "login_command must be an argv table (list of strings)" end
+  local out = vim.deepcopy(command)
+  for _, arg in ipairs(out) do
+    if type(arg) ~= "string" then return nil, "login_command must be an argv table (list of strings)" end
+  end
+  return out
 end
 
 local function is_ollama_cloud(model)
@@ -54,7 +59,13 @@ end
 
 function M.login_command(model)
   model = model or {}
-  local cmd = split_command(model.login_command) or login_command_by_provider[model.provider]
+  local cmd, err
+  if model.login_command ~= nil then
+    cmd, err = argv_template(model.login_command)
+    if not cmd then return nil, err end
+  else
+    cmd = login_command_by_provider[model.provider]
+  end
   if not cmd then return nil, "login command not configured for provider: " .. tostring(model.provider) end
   if model.executable and model.executable ~= "" then cmd[1] = model.executable end
   return cmd

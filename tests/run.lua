@@ -23,6 +23,12 @@ assert_eq(config.get().agent.enabled, true, "agent handoff enabled by default af
 assert(path.is_ignored("node_modules/x.js", config.get().ignore), "node_modules ignored")
 assert(path.is_ignored(".env.local", config.get().ignore), ".env.* ignored")
 assert(not path.is_ignored("lua/x.lua", config.get().ignore), "lua file not ignored")
+assert(path.is_ignored("src/build/x.js", { "build/" }), "ignored dirs match path segment boundaries")
+assert(not path.is_ignored("rebuild/x.js", { "build/" }), "ignored dirs do not match inside larger path segments")
+config.setup({ storage = { enabled = false }, commands = { allowlist = { "git" } }, ignore = { "secrets/" } })
+assert_eq(config.get().commands.allowlist, { "git" }, "command allowlist setup replaces default list")
+assert_eq(config.get().ignore, { "secrets/" }, "ignore setup replaces default list")
+config.setup({ storage = { enabled = false } })
 assert(#search.goal_terms("Add configurable keybindings to plugin") >= 2, "goal terms extracted")
 local idx = index.build(vim.fn.getcwd())
 assert(idx.files_seen > 0, "index sees repo files")
@@ -84,11 +90,17 @@ local applied, apply_err = diff_check.apply(vim.fn.getcwd(), 'diff --git "a/x y"
 assert(not applied and apply_err:match("quoted paths blocked"), "quoted diff paths rejected")
 applied, apply_err = diff_check.apply(vim.fn.getcwd(), "diff --git a/ok.lua b/ok.lua\n--- a/.env.local\n+++ b/.env.local\n")
 assert(not applied and apply_err:match("unsafe path: %.env%.local"), "ignored paths with tab-less headers still caught")
+config.setup({ storage = { enabled = false }, ignore = { "secrets/" } })
+applied, apply_err = diff_check.apply(vim.fn.getcwd(), "diff --git a/.git/config b/.git/config\n--- a/.git/config\n+++ b/.git/config\n")
+assert(not applied and apply_err:match("unsafe path: %.git/config"), ".git paths stay blocked even when ignore is replaced")
+config.setup({ storage = { enabled = false } })
 
 local tmux_argv = agent.argv({ adapter = "tmux", target = "sess:1.2" }, "line one\nline two", "/tmp/repo")
 assert_eq(tmux_argv[5], "-l", "tmux send-keys sends prompt literally")
 assert(tmux_argv[6] == "line one line two", "tmux prompt collapsed to one line")
 assert(vim.tbl_contains(tmux_argv, "C-m"), "tmux sends Enter as separate key")
+local bad_agent_argv, bad_agent_err = agent.argv({ command = "fake-agent --task {prompt}" }, "hello", "/tmp/repo")
+assert(not bad_agent_argv and bad_agent_err:match("argv table"), "agent command strings rejected")
 
 local ok, err = runner.validate({ "rm", "-rf", "." })
 assert(not ok and err:match("blocked"), "rm blocked")
@@ -221,6 +233,38 @@ assert(auth.status({ provider = "openrouter", api_key_env = "MASTER_HAND_TEST_OP
 vim.env.MASTER_HAND_TEST_OPENROUTER_KEY = nil
 content, perr = providers.complete({}, { provider = "none" })
 assert(not content and perr:match("disabled"), "provider none disables model calls")
+content, perr = providers.complete({ { role = "user", content = "hi" } }, { provider = "cli", command = "my-ai-cli run {prompt}" })
+assert(not content and perr:match("argv table"), "provider command strings rejected")
+local bad_login_argv, bad_login_err = auth.login_command({ provider = "codex", login_command = "codex login" })
+assert(not bad_login_argv and bad_login_err:match("argv table"), "auth login_command strings rejected")
+
+local original_provider_complete = providers.complete
+state.data.long_term_goal = "Test long goal"
+state.data.long_term_goal_source = "user"
+state.data.short_term_goal = "Test short goal"
+state.data.short_term_goal_source = "user"
+config.setup({ proactivity = "passive", storage = { enabled = false }, model = { provider = "openai_compatible" } })
+providers.complete = function()
+  return vim.json.encode({ suggestions = { { title = "Object wrapped suggestion", reason = "wrapped", confidence = 0.8 } } })
+end
+require("master-hand.suggestions").generate()
+local found_wrapped = false
+for _, sug in ipairs(state.data.suggestions) do
+  if sug.title == "Object wrapped suggestion" then found_wrapped = true end
+end
+assert(found_wrapped, "provider JSON object suggestions list is unwrapped")
+providers.complete = function() return vim.json.encode({ title = "plain object" }) end
+require("master-hand.suggestions").generate()
+local found_malformed = false
+for _, sug in ipairs(state.data.suggestions) do
+  if sug.id == "provider-parse-error" then found_malformed = true end
+end
+assert(found_malformed, "plain provider JSON object surfaces malformed advice")
+providers.complete = original_provider_complete
+state.data.long_term_goal = nil
+state.data.long_term_goal_source = nil
+state.data.short_term_goal = nil
+state.data.short_term_goal_source = nil
 
 local mh = require("master-hand")
 mh.setup({ proactivity = "passive", storage = { enabled = false }, model = { provider = "auto", name = "old", endpoint = "http://old" } })
@@ -370,7 +414,7 @@ original_system = vim.system
 vim.system = function(argv_arg, opts_arg, cb_arg)
   captured = { argv = argv_arg, opts = opts_arg }
   if cb_arg then cb_arg({ code = 0, signal = 0, stdout = "", stderr = "" }) end
-  return { pid = 123 }
+  return { pid = 123, wait = function() return { code = 0, signal = 0, stdout = vim.fn.getcwd() .. "\n", stderr = "" } end }
 end
 require("master-hand").setup({ proactivity = "passive", storage = { enabled = false }, agent = { enabled = true, command = { "fake-agent", "--task", "{prompt}" }, auto_checktime = false } })
 require("master-hand").approve_suggestion(1)

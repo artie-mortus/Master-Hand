@@ -33,7 +33,8 @@ function M.diff(root, file, max_bytes)
   local chunks = {}
   for _, f in ipairs(files) do
     if not path.is_ignored(f, config.get().ignore) then
-      table.insert(chunks, run(root, { "diff", "--", f }))
+      local with_staged = run(root, { "diff", "HEAD", "--", f })
+      table.insert(chunks, with_staged ~= "" and with_staged or run(root, { "diff", "--", f }))
     end
   end
   local out = table.concat(chunks, "\n")

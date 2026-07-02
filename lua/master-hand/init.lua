@@ -12,17 +12,19 @@ local search = require("master-hand.search")
 local providers = require("master-hand.providers")
 local auth = require("master-hand.auth")
 local agent = require("master-hand.agent")
+local git = require("master-hand.git")
 
 local M = {}
 local timer = nil
 local loading_timer = nil
 local loading_id = 0
+local run_suggest
 
 -- Persist only long-lived user intent/feedback, not volatile context or pending actions.
 local function save_state() storage.save(state.persistable()) end
 
 local function refresh_suggestions()
-  M.suggest()
+  if ui.is_open() then run_suggest("suggest") end
 end
 
 local function stop_timer()
@@ -62,7 +64,7 @@ local function start_loading(message)
   return id
 end
 
-local function run_suggest(mode)
+run_suggest = function(mode)
   local id = start_loading(mode == "plan" and "Loading model plan..." or "Loading model suggestions...")
   suggestions.generate_async({ mode = mode or "suggest" }, function()
     if stop_loading(id) and ui.is_open() then ui.render() end
@@ -103,7 +105,7 @@ end
 function M.setup(opts)
   config.setup(opts)
   state.restore(storage.load())
-  state.data.root = vim.uv.cwd()
+  state.data.root = git.root()
   setup_autocmds()
 end
 
@@ -414,7 +416,7 @@ local function auth_env_for(update)
 end
 
 local function run_login_background(argv)
-  local ok, err = pcall(vim.system, argv, { text = true, timeout = config.get().model.timeout_ms }, function(res)
+  local ok, err = pcall(vim.system, argv, { text = true, timeout = 600000 }, function(res)
     vim.schedule(function()
       local output = vim.trim((res.stdout or "") .. (res.stderr or ""))
       if res.code == 0 then

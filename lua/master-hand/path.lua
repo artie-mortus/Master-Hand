@@ -25,7 +25,7 @@ function M.is_ignored(path, patterns)
     pat = M.normalize(pat)
     if pat:sub(-1) == "/" then
       local dir = pat:sub(1, -2)
-      if path == dir or path:find(dir .. "/", 1, true) then return true end
+      if path == dir or path:find(dir .. "/", 1, true) == 1 or path:find("/" .. dir .. "/", 1, true) then return true end
     elseif pat:find("*", 1, true) then
       if path:match(glob_to_pattern(pat)) or vim.fn.fnamemodify(path, ":t"):match(glob_to_pattern(pat)) then return true end
     elseif path == pat or vim.fn.fnamemodify(path, ":t") == pat then

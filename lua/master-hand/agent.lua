@@ -90,11 +90,16 @@ end
 function M.argv(opts, prompt, root)
   opts = opts or {}
   local vars = { prompt = prompt, root = root, prompt_q = shell_quote(prompt), root_q = shell_quote(root) }
+  if type(opts.command) == "string" then return nil, "command must be an argv table (list of strings)" end
   if type(opts.command) == "table" and opts.command[1] then
     local out = {}
-    for i, part in ipairs(opts.command) do out[i] = replace_vars(part, vars) end
+    for i, part in ipairs(opts.command) do
+      if type(part) ~= "string" then return nil, "command must be an argv table (list of strings)" end
+      out[i] = replace_vars(part, vars)
+    end
     return out
   end
+  if opts.command ~= nil then return nil, "command must be an argv table (list of strings)" end
   return default_command(opts, prompt, root)
 end
 

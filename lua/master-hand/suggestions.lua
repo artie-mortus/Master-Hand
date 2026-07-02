@@ -118,6 +118,11 @@ local function parse_provider_suggestions(content, err, model)
   if not ok then
     return { item("provider-parse-error", "Model suggestions malformed", "Provider did not return JSON array.", {}, 0.3, "Retry or adjust provider prompt/model.", "advice") }, "Provider did not return JSON array"
   end
+  local is_list = vim.islist or vim.tbl_islist
+  if type(decoded) == "table" and not is_list(decoded) then
+    if is_list(decoded.suggestions) then return schema.list(decoded.suggestions), nil end
+    return { item("provider-parse-error", "Model suggestions malformed", "Provider did not return JSON array.", {}, 0.3, "Retry or adjust provider prompt/model.", "advice") }, "Provider did not return JSON array"
+  end
   return schema.list(decoded), nil
 end
 

@@ -11,6 +11,7 @@ M.defaults = {
     diagnostics = true,
     git = true,
   },
+  -- List-valued options are replaced by setup() values, not merged index-wise.
   ignore = {
     ".git/",
     "node_modules/",
@@ -25,13 +26,13 @@ M.defaults = {
     cloud_policy = "fallback", -- fallback orders local candidates before cloud before cloud ranker chooses
     ranking_model = nil, -- optional cloud model used only to pick ranked candidate; defaults to highest-ranked cloud candidate
     ranking_max_tokens = 24,
-    ranked = {}, -- optional ranked model candidates: { { provider = "ollama", name = "qwen", rank = 70 }, ... }
+    ranked = {}, -- optional ranked model candidates; user list replaces default list
     endpoint = nil,
     api_key_env = nil,
     api_key = nil,
     executable = nil,
-    command = nil, -- CLI provider argv template; supports {prompt}
-    login_command = nil,
+    command = nil, -- CLI provider argv template list; supports {prompt}; shell strings rejected
+    login_command = nil, -- login argv template list; shell strings rejected
     name = nil,
     timeout_ms = 60000,
     temperature = 0.2,
@@ -55,15 +56,15 @@ M.defaults = {
     },
   },
   commands = {
-    allowlist = { "git", "make", "npm", "pnpm", "yarn", "cargo", "go", "pytest", "python", "lua", "nvim" },
-    blocklist = { "rm", "sudo", "git reset", "git clean" },
+    allowlist = { "git", "make", "npm", "pnpm", "yarn", "cargo", "go", "pytest", "python", "lua", "nvim" }, -- user list replaces default list
+    blocklist = { "rm", "sudo", "git reset", "git clean" }, -- user list replaces default list
     timeout_ms = 10000,
   },
   agent = {
     enabled = true,
     adapter = "auto", -- auto | pi | codex | tmux | zellij | terminal
     executable = nil, -- defaults to pi, or codex when adapter/executable says codex
-    command = nil, -- optional argv template; supports {prompt}, {root}, {prompt_q}, {root_q}
+    command = nil, -- optional argv template list; supports {prompt}, {root}, {prompt_q}, {root_q}; shell strings rejected
     target = nil, -- tmux target pane/window; or MASTER_HAND_TMUX_TARGET
     auto_checktime = true,
     set_autoread = true,
@@ -81,8 +82,32 @@ M.defaults = {
   },
 }
 
+local is_list = vim.islist or vim.tbl_islist
+
+local function is_list_value(value, default_value)
+  if type(value) ~= "table" or not is_list(value) then return false end
+  return next(value) ~= nil or (type(default_value) == "table" and is_list(default_value))
+end
+
 local function merge(defaults, opts)
-  return vim.tbl_deep_extend("force", vim.deepcopy(defaults or {}), opts or {})
+  defaults = defaults or {}
+  opts = opts or {}
+  if type(opts) ~= "table" then return vim.deepcopy(opts) end
+  if is_list_value(opts, defaults) then return vim.deepcopy(opts) end
+  if type(defaults) ~= "table" or is_list(defaults) then return vim.deepcopy(opts) end
+
+  local out = vim.deepcopy(defaults)
+  for key, value in pairs(opts) do
+    local default_value = defaults[key]
+    if is_list_value(value, default_value) then
+      out[key] = vim.deepcopy(value)
+    elseif type(value) == "table" and type(default_value) == "table" and not is_list(default_value) then
+      out[key] = merge(default_value, value)
+    else
+      out[key] = vim.deepcopy(value)
+    end
+  end
+  return out
 end
 
 function M.setup(opts)

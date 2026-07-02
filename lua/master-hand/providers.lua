@@ -76,14 +76,25 @@ local function messages_prompt(messages)
   return table.concat(out, "\n\n")
 end
 
-local function split_command(command)
-  if type(command) == "table" then return vim.deepcopy(command) end
-  if type(command) == "string" and command ~= "" then return vim.split(command, "%s+", { trimempty = true }) end
-  return nil
+local function argv_template(command)
+  if command == nil then return nil end
+  if type(command) == "string" then return nil, "command must be an argv table (list of strings)" end
+  if type(command) ~= "table" or not command[1] then return nil, "command must be an argv table (list of strings)" end
+  local out = vim.deepcopy(command)
+  for _, arg in ipairs(out) do
+    if type(arg) ~= "string" then return nil, "command must be an argv table (list of strings)" end
+  end
+  return out
 end
 
 local function cli_command(model, prompt)
-  local cmd = split_command(model.command) or account_cli_commands[model.provider]
+  local cmd, err
+  if model.command ~= nil then
+    cmd, err = argv_template(model.command)
+    if not cmd then return nil, nil, err end
+  else
+    cmd = account_cli_commands[model.provider]
+  end
   if not cmd then return nil, nil, "model.command required for cli provider" end
   if model.executable and model.executable ~= "" then cmd[1] = model.executable end
   local used_prompt = false

@@ -6,6 +6,10 @@ local config = require("master-hand.config")
 local path = require("master-hand.path")
 local M = {}
 
+local function touches_git_dir(p)
+  return p == ".git" or p:find(".git/", 1, true) == 1 or p:find("/.git/", 1, true) ~= nil
+end
+
 -- Reject patches that can escape repo, touch ignored paths, or include binary data.
 local function unsafe(diff)
   if not diff or diff == "" then return "empty diff" end
@@ -23,7 +27,7 @@ local function unsafe(diff)
   for _, p in ipairs(paths) do
     -- Strip only the trailing tab+metadata git appends; spaces are legal in paths.
     p = p:gsub("\t.*$", "")
-    if p:sub(1,1) == "/" or p:find("%.%./") or path.is_ignored(p, config.get().ignore) then return "unsafe path: " .. p end
+    if p:sub(1,1) == "/" or p:find("%.%./") or touches_git_dir(p) or path.is_ignored(p, config.get().ignore) then return "unsafe path: " .. p end
   end
 end
 

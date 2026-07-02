@@ -203,6 +203,8 @@ require("master-hand").setup({
 })
 ```
 
+`command` and `login_command` must be argv tables. Shell command strings are rejected instead of split.
+
 ### OpenAI-compatible API
 
 ```lua
@@ -300,7 +302,7 @@ Ranked model routing uses a cloud model as the router. Master Hand sends a tiny 
 | `cloud_policy = "best"` | Sort all candidates by `rank` before asking the router. Stronger-model friendly. |
 | `ranking_model` | Cloud model used only for candidate choice; defaults to highest-ranked cloud candidate. |
 | `ranking_max_tokens` | Token cap for the router response; default `24`. |
-| `ranked` / `candidates` | Ordered candidate list. Each entry accepts normal model fields plus `rank`, `is_local`, or `cloud`. |
+| `ranked` / `candidates` | Ordered candidate list. Each entry accepts normal model fields plus `rank`, `is_local`, or `cloud`. Setup values replace defaults rather than merging index-wise. |
 
 ```lua
 require("master-hand").setup({
@@ -405,6 +407,8 @@ require("master-hand").setup({
 
 Template variables: `{prompt}`, `{root}`, `{prompt_q}`, `{root_q}`.
 
+Custom agent `command` must be an argv table. Shell command strings are rejected.
+
 Tmux target example:
 
 ```lua
@@ -475,6 +479,8 @@ require("master-hand").setup({
   },
 })
 ```
+
+List-valued setup options replace defaults rather than merging index-wise. This applies to `ignore`, `commands.allowlist`, `commands.blocklist`, and `model.ranked`/`model.candidates`; include every item you want active. Command templates (`model.command`, `model.login_command`, and `agent.command`) must be argv tables, not shell strings.
 
 Long-term goal and feedback persist to:
 
